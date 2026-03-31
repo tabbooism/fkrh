@@ -23,7 +23,8 @@ import {
   AlertTriangle,
   ChevronRight,
   Loader2,
-  Send
+  Send,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
@@ -33,6 +34,7 @@ import { TargetData, ContextualInfo, InvestigationState, OSINTCategory } from '.
 import { NetworkGraph } from './components/NetworkGraph';
 import { BreachTimeline } from './components/BreachTimeline';
 import { TargetDistribution } from './components/TargetDistribution';
+import { EntityExtractor } from './components/EntityExtractor';
 
 const INITIAL_STATE: InvestigationState = {
   targets: {
@@ -172,7 +174,17 @@ const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; des
 ];
 
 export default function App() {
-  const [state, setState] = useState<InvestigationState>(INITIAL_STATE);
+  const [state, setState] = useState<InvestigationState>(() => {
+    const saved = localStorage.getItem('osint_session');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to load saved session:", e);
+      }
+    }
+    return INITIAL_STATE;
+  });
   const [activeCategory, setActiveCategory] = useState<OSINTCategory>('infrastructure');
   const [aiResponse, setAiResponse] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -186,6 +198,10 @@ export default function App() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  React.useEffect(() => {
+    localStorage.setItem('osint_session', JSON.stringify(state));
+  }, [state]);
 
   const addTarget = (type: keyof TargetData, value: string) => {
     if (!value.trim()) return;
@@ -252,6 +268,18 @@ export default function App() {
     }
   };
 
+  const exportSession = () => {
+    const dataStr = JSON.stringify(state, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = 'osint_session_export.json';
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
   return (
     <div className="min-h-screen flex flex-col font-sans scanline relative overflow-hidden">
       {/* Header */}
@@ -292,6 +320,14 @@ export default function App() {
           >
             <Search className="w-3 h-3" />
             {showLiveScan ? "Exit Scan" : "Live Scan"}
+          </button>
+          <button 
+            onClick={exportSession}
+            className="flex-1 md:flex-none text-[10px] font-bold uppercase tracking-widest border border-bg px-3 py-1.5 hover:bg-bg hover:text-ink transition-all flex items-center justify-center gap-2"
+          >
+            <Download className="w-3 h-3" />
+            <span className="hidden sm:inline">Export JSON</span>
+            <span className="sm:hidden">Export</span>
           </button>
           <button 
             onClick={() => {
@@ -1143,6 +1179,20 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
         return [
           { name: 'Web Archives', tools: ['Wayback Machine', 'Arquivo.pt', 'Archive.today'] },
           { name: 'Cache Search', tools: ['Google Cache', 'Bing Cache'] },
+        ];
+      case 'ai':
+        return [
+          { 
+            name: 'Entity Extraction', 
+            description: 'Automatically extract entities from unstructured text.',
+            customContent: (
+              <div className="mt-4">
+                <EntityExtractor state={state} onUpdateState={onUpdateState} />
+              </div>
+            )
+          },
+          { name: 'Correlate Data', commands: ['Analyze all targets for hidden links'], tools: ['Gemini Pro'] },
+          { name: 'Pattern Recognition', tools: ['Gemini Flash'], description: 'Identify behavioral patterns in target activity' },
         ];
       default:
         return [];
