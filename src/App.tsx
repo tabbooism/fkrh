@@ -192,6 +192,7 @@ export default function App() {
   const [showLiveScan, setShowLiveScan] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const isRemoteUpdate = useRef(false);
 
@@ -370,16 +371,22 @@ export default function App() {
           </button>
           <button 
             onClick={() => {
-              if (confirm('Clear all investigation data?')) {
+              if (showClearConfirm) {
                 setState(INITIAL_STATE);
                 setAiResponse('');
+                setShowClearConfirm(false);
+              } else {
+                setShowClearConfirm(true);
+                setTimeout(() => setShowClearConfirm(false), 3000);
               }
             }}
-            className="text-[10px] font-mono opacity-60 hover:opacity-100 uppercase tracking-widest flex items-center gap-1"
+            className={cn(
+              "text-[10px] font-mono uppercase tracking-widest flex items-center gap-1 transition-all",
+              showClearConfirm ? "text-red-500 font-bold" : "opacity-60 hover:opacity-100"
+            )}
           >
             <Trash2 className="w-3 h-3" />
-            <span className="hidden sm:inline">Clear Session</span>
-            <span className="sm:hidden">Clear</span>
+            {showClearConfirm ? "CONFIRM CLEAR?" : "Clear Session"}
           </button>
           <div className="hidden lg:block text-[10px] font-mono opacity-60 uppercase tracking-widest">
             Advanced Framework v1.0 // System Ready
@@ -427,6 +434,27 @@ export default function App() {
                       <Plus className="w-4 h-4 rotate-45" />
                     </button>
                   </div>
+
+                  <section className="border-b border-ink/10 pb-6">
+                    <h2 className="col-header mb-4">Case Management</h2>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button 
+                        onClick={exportSession}
+                        className="flex items-center justify-center gap-2 p-2 border border-ink text-[10px] font-bold uppercase tracking-widest hover:bg-ink hover:text-bg transition-all"
+                      >
+                        <Download className="w-3 h-3" />
+                        Export JSON
+                      </button>
+                      <button 
+                        onClick={() => setState(RUNEHALL_CASE)}
+                        className="flex items-center justify-center gap-2 p-2 border border-ink text-[10px] font-bold uppercase tracking-widest hover:bg-ink hover:text-bg transition-all"
+                      >
+                        <FileText className="w-3 h-3" />
+                        Load Case
+                      </button>
+                    </div>
+                  </section>
+
               <section>
                 <h2 className="col-header mb-4">Primary Targets</h2>
                 <div className="space-y-4">
