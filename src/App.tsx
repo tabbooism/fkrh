@@ -174,6 +174,15 @@ export default function App() {
   const [aiResponse, setAiResponse] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showLiveScan, setShowLiveScan] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const addTarget = (type: keyof TargetData, value: string) => {
     if (!value.trim()) return;
@@ -243,28 +252,43 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col font-sans scanline relative overflow-hidden">
       {/* Header */}
-      <header className="border-b border-ink p-4 flex items-center justify-between bg-ink text-bg z-20">
-        <div className="flex items-center gap-3 glitch cursor-pointer" onClick={() => setShowLiveScan(false)}>
-          <Shield className="w-6 h-6" />
-          <h1 className="text-xl font-bold tracking-tighter uppercase italic">RUNEOSINT</h1>
+      <header className="border-b border-ink p-4 flex flex-col md:flex-row items-start md:items-center justify-between bg-ink text-bg z-20 gap-4 md:gap-0">
+        <div className="flex items-center justify-between w-full md:w-auto">
+          <div className="flex items-center gap-3 glitch cursor-pointer" onClick={() => setShowLiveScan(false)}>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsSidebarOpen(!isSidebarOpen);
+              }}
+              className="md:hidden p-1 hover:bg-bg/10 rounded transition-colors"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+            <Shield className="w-6 h-6" />
+            <h1 className="text-xl font-bold tracking-tighter uppercase italic">RUNEOSINT</h1>
+          </div>
+          <div className="md:hidden text-[8px] font-mono opacity-60 uppercase tracking-widest">
+            v1.0 // READY
+          </div>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-3 md:gap-6 w-full md:w-auto">
           <button 
             onClick={() => setState(RUNEHALL_CASE)}
-            className="text-[10px] font-bold uppercase tracking-widest border border-bg px-3 py-1 hover:bg-bg hover:text-ink transition-all flex items-center gap-2"
+            className="flex-1 md:flex-none text-[10px] font-bold uppercase tracking-widest border border-bg px-3 py-1.5 hover:bg-bg hover:text-ink transition-all flex items-center justify-center gap-2"
           >
             <FileText className="w-3 h-3" />
-            Load Case Study
+            <span className="hidden sm:inline">Load Case Study</span>
+            <span className="sm:hidden">Load Case</span>
           </button>
           <button 
             onClick={() => setShowLiveScan(!showLiveScan)}
             className={cn(
-              "text-[10px] font-bold uppercase tracking-widest border border-bg px-3 py-1 transition-all flex items-center gap-2",
+              "flex-1 md:flex-none text-[10px] font-bold uppercase tracking-widest border border-bg px-3 py-1.5 transition-all flex items-center justify-center gap-2",
               showLiveScan ? "bg-bg text-ink" : "hover:bg-bg/10"
             )}
           >
             <Search className="w-3 h-3" />
-            {showLiveScan ? "Exit Scan" : "Live Network Scan"}
+            {showLiveScan ? "Exit Scan" : "Live Scan"}
           </button>
           <button 
             onClick={() => {
@@ -276,9 +300,10 @@ export default function App() {
             className="text-[10px] font-mono opacity-60 hover:opacity-100 uppercase tracking-widest flex items-center gap-1"
           >
             <Trash2 className="w-3 h-3" />
-            Clear Session
+            <span className="hidden sm:inline">Clear Session</span>
+            <span className="sm:hidden">Clear</span>
           </button>
-          <div className="text-[10px] font-mono opacity-60 uppercase tracking-widest">
+          <div className="hidden lg:block text-[10px] font-mono opacity-60 uppercase tracking-widest">
             Advanced Framework v1.0 // System Ready
           </div>
         </div>
@@ -306,7 +331,24 @@ export default function App() {
         ) : (
           <>
             {/* Sidebar - Targets */}
-            <aside className="w-80 border-r border-ink overflow-y-auto p-4 flex flex-col gap-6 bg-bg/50">
+            <AnimatePresence>
+              {(!isMobile || isSidebarOpen) && (
+                <motion.aside 
+                  initial={isMobile ? { x: -320 } : false}
+                  animate={{ x: 0 }}
+                  exit={{ x: -320 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                  className={cn(
+                    "fixed md:relative z-40 w-80 h-[calc(100vh-120px)] md:h-auto border-r border-ink overflow-y-auto p-4 flex flex-col gap-6 bg-bg shadow-2xl md:shadow-none",
+                    isMobile && "top-[120px] left-0"
+                  )}
+                >
+                  <div className="flex justify-between items-center md:hidden mb-2">
+                    <h2 className="text-xs font-bold uppercase tracking-widest">Investigation Sidebar</h2>
+                    <button onClick={() => setIsSidebarOpen(false)} className="p-1 hover:bg-ink/5 rounded">
+                      <Plus className="w-4 h-4 rotate-45" />
+                    </button>
+                  </div>
               <section>
                 <h2 className="col-header mb-4">Primary Targets</h2>
                 <div className="space-y-4">
@@ -356,27 +398,6 @@ export default function App() {
                     label="Other" 
                     type="other" 
                     values={state.targets.other} 
-                    onAdd={addTarget} 
-                    onRemove={removeTarget} 
-                  />
-                  <TargetInput 
-                    label="Emails" 
-                    type="emails" 
-                    values={state.targets.emails} 
-                    onAdd={addTarget} 
-                    onRemove={removeTarget} 
-                  />
-                  <TargetInput 
-                    label="Names" 
-                    type="names" 
-                    values={state.targets.names} 
-                    onAdd={addTarget} 
-                    onRemove={removeTarget} 
-                  />
-                  <TargetInput 
-                    label="Crypto" 
-                    type="crypto" 
-                    values={state.targets.crypto} 
                     onAdd={addTarget} 
                     onRemove={removeTarget} 
                   />
@@ -431,10 +452,25 @@ export default function App() {
                 <FileText className="w-4 h-4" />
                 Export Case Data
               </button>
-            </aside>
+                </motion.aside>
+              )}
+            </AnimatePresence>
+
+            {/* Mobile Sidebar Overlay */}
+            <AnimatePresence>
+              {isSidebarOpen && (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="fixed inset-0 bg-ink/20 backdrop-blur-sm z-30 md:hidden"
+                />
+              )}
+            </AnimatePresence>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden w-full">
               {/* Navigation Tabs */}
               <nav className="border-b border-ink flex overflow-x-auto no-scrollbar">
                 {CATEGORIES.map(cat => (
@@ -453,7 +489,7 @@ export default function App() {
               </nav>
 
               {/* Category Content */}
-              <div className="flex-1 overflow-y-auto p-8">
+              <div className="flex-1 overflow-y-auto p-4 md:p-8">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeCategory}
@@ -463,9 +499,9 @@ export default function App() {
                     transition={{ duration: 0.2 }}
                     className="max-w-4xl mx-auto"
                   >
-                    <div className="mb-8">
-                      <h2 className="text-4xl font-black uppercase italic tracking-tighter mb-2">{activeCategory.replace(/([A-Z])/g, ' $1')}</h2>
-                      <p className="text-sm opacity-60 font-mono">{CATEGORIES.find(c => c.id === activeCategory)?.description}</p>
+                    <div className="mb-6 md:mb-8">
+                      <h2 className="text-2xl md:text-4xl font-black uppercase italic tracking-tighter mb-2">{activeCategory.replace(/([A-Z])/g, ' $1')}</h2>
+                      <p className="text-[10px] md:text-sm opacity-60 font-mono">{CATEGORIES.find(c => c.id === activeCategory)?.description}</p>
                     </div>
 
                     {activeCategory === 'ai' ? (
@@ -515,16 +551,16 @@ export default function App() {
       </main>
 
       {/* Footer Status Bar */}
-      <footer className="border-t border-ink p-2 bg-ink text-bg text-[10px] font-mono flex justify-between items-center px-4">
-        <div className="flex gap-4">
+      <footer className="border-t border-ink p-2 bg-ink text-bg text-[9px] md:text-[10px] font-mono flex flex-col md:flex-row justify-between items-center px-4 gap-2 md:gap-0">
+        <div className="flex flex-wrap justify-center gap-2 md:gap-4">
           <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> NETWORK ACTIVE</span>
-          <span className="opacity-50">|</span>
-          <span>TARGETS LOADED: {Object.values(state.targets).flat().length}</span>
-          <span className="opacity-50">|</span>
-          <span>INTEL DATABASE: {state.intelTargets.length} ENTRIES</span>
+          <span className="opacity-50 hidden sm:inline">|</span>
+          <span>TARGETS: {Object.values(state.targets).flat().length}</span>
+          <span className="opacity-50 hidden sm:inline">|</span>
+          <span>INTEL: {state.intelTargets.length}</span>
         </div>
-        <div className="opacity-50 uppercase">
-          RUNEOSINT PROTOCOL // CROSS-PLATFORM INVESTIGATOR V1.0
+        <div className="opacity-50 uppercase text-center">
+          RUNEOSINT // V1.0
         </div>
       </footer>
     </div>
@@ -542,9 +578,9 @@ function LiveScanView({ state, onAddIntel }: { state: InvestigationState; onAddI
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-bg">
+    <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-bg">
       {/* Target List */}
-      <div className="w-1/3 border-r border-ink flex flex-col overflow-hidden">
+      <div className="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-ink flex flex-col overflow-hidden h-1/2 md:h-auto">
         <div className="p-4 border-b border-ink bg-ink/5 flex flex-col gap-2">
           <div className="flex justify-between items-center">
             <div className="text-xs font-bold uppercase tracking-widest">Live Network Scan</div>
@@ -585,10 +621,10 @@ function LiveScanView({ state, onAddIntel }: { state: InvestigationState; onAddI
       </div>
 
       {/* Deep Dive / Event Log */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-ink bg-ink/5 flex justify-between items-center">
-          <div className="text-xs font-bold uppercase tracking-widest">Extraction & Identification History</div>
-          <div className="text-[10px] font-mono opacity-50">{state.intelTargets.length} TOTAL EVENTS RECORDED</div>
+      <div className="flex-1 flex flex-col overflow-hidden h-1/2 md:h-auto">
+        <div className="p-4 border-b border-ink bg-ink/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div className="text-[10px] md:text-xs font-bold uppercase tracking-widest">Extraction History</div>
+          <div className="text-[8px] md:text-[10px] font-mono opacity-50">{state.intelTargets.length} EVENTS</div>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {state.intelTargets.map((target, idx) => (
@@ -1082,18 +1118,18 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
     <div className="space-y-6">
       {activeTool && (
         <motion.div 
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="bg-ink text-bg p-4 font-mono text-[10px] border border-ink relative overflow-hidden"
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="fixed bottom-12 md:bottom-16 left-4 right-4 md:left-auto md:right-8 md:w-96 bg-ink text-bg p-4 border border-bg/20 shadow-2xl z-50 font-mono text-[10px]"
         >
-          <div className="flex justify-between items-center mb-2 border-b border-bg/20 pb-1">
+          <div className="flex justify-between items-center mb-2 border-b border-bg/10 pb-2">
             <span className="flex items-center gap-2">
               <Terminal className="w-3 h-3" />
               TERMINAL: {activeTool.toUpperCase()}
             </span>
-            <button onClick={() => setActiveTool(null)} className="hover:text-red-500">CLOSE [X]</button>
+            <button onClick={() => setActiveTool(null)} className="hover:text-red-500 p-1">CLOSE [X]</button>
           </div>
-          <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+          <div className="space-y-1 max-h-32 md:max-h-48 overflow-y-auto custom-scrollbar">
             {terminalOutput.map((line, i) => (
               <div key={i} className={cn(
                 line.startsWith('[SUCCESS]') ? "text-green-400" : 
