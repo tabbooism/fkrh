@@ -10,7 +10,9 @@ import {
   Play, 
   CheckCircle, 
   XCircle,
-  MoreVertical
+  MoreVertical,
+  Link as LinkIcon,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { InvestigationState, Task } from '../types';
@@ -28,7 +30,8 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
     title: '',
     description: '',
     assignee: '',
-    priority: 'medium' as Task['priority']
+    priority: 'medium' as Task['priority'],
+    dependencies: [] as string[]
   });
 
   const addTask = () => {
@@ -41,6 +44,7 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
       assignee: newTask.assignee || 'Unassigned',
       status: 'pending',
       priority: newTask.priority,
+      dependencies: newTask.dependencies,
       progress: 0,
       createdAt: new Date().toLocaleString(),
       updatedAt: new Date().toLocaleString()
@@ -50,7 +54,7 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
       tasks: [task, ...state.tasks]
     });
 
-    setNewTask({ title: '', description: '', assignee: '', priority: 'medium' });
+    setNewTask({ title: '', description: '', assignee: '', priority: 'medium', dependencies: [] });
     setIsAdding(false);
   };
 
@@ -88,6 +92,14 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
   const removeTask = (id: string) => {
     onUpdateState({
       tasks: state.tasks.filter(t => t.id !== id)
+    });
+  };
+
+  const areDependenciesMet = (task: Task) => {
+    if (!task.dependencies || task.dependencies.length === 0) return true;
+    return task.dependencies.every(depId => {
+      const depTask = state.tasks.find(t => t.id === depId);
+      return depTask?.status === 'completed';
     });
   };
 
@@ -198,20 +210,51 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
                   ))}
                 </div>
               </div>
-              <div className="flex items-end gap-2">
-                <button 
-                  onClick={() => setIsAdding(false)}
-                  className="px-4 py-2 text-[10px] font-bold uppercase opacity-60 hover:opacity-100"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={addTask}
-                  className="px-6 py-2 bg-ink text-bg text-[10px] font-bold uppercase tracking-widest"
-                >
-                  Add Task
-                </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[9px] font-bold uppercase opacity-40">Dependencies</label>
+              <div className="flex flex-wrap gap-2">
+                {state.tasks.length === 0 ? (
+                  <span className="text-[8px] opacity-30 italic">No existing tasks to depend on.</span>
+                ) : (
+                  state.tasks.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        const deps = newTask.dependencies.includes(t.id)
+                          ? newTask.dependencies.filter(id => id !== t.id)
+                          : [...newTask.dependencies, t.id];
+                        setNewTask(prev => ({ ...prev, dependencies: deps }));
+                      }}
+                      className={cn(
+                        "px-2 py-1 text-[8px] font-bold uppercase border transition-all flex items-center gap-1",
+                        newTask.dependencies.includes(t.id)
+                          ? "bg-ink text-bg border-ink"
+                          : "border-ink/10 opacity-50 hover:opacity-100"
+                      )}
+                    >
+                      <LinkIcon className="w-2 h-2" />
+                      {t.title}
+                    </button>
+                  ))
+                )}
               </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button 
+                onClick={() => setIsAdding(false)}
+                className="px-4 py-2 text-[10px] font-bold uppercase opacity-60 hover:opacity-100"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={addTask}
+                className="px-6 py-2 bg-ink text-bg text-[10px] font-bold uppercase tracking-widest"
+              >
+                Add Task
+              </button>
             </div>
           </motion.div>
         )}
@@ -262,6 +305,30 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
                       </div>
                     </div>
                     <p className="text-[10px] opacity-60 font-mono">{task.description}</p>
+                    {task.dependencies && task.dependencies.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <span className="text-[7px] font-bold uppercase opacity-40 flex items-center gap-1 mr-1">
+                          <LinkIcon className="w-2 h-2" />
+                          Depends on:
+                        </span>
+                        {task.dependencies.map(depId => {
+                          const depTask = state.tasks.find(t => t.id === depId);
+                          return (
+                            <span 
+                              key={depId}
+                              className={cn(
+                                "text-[7px] font-bold uppercase px-1.5 py-0.5 border",
+                                depTask?.status === 'completed' 
+                                  ? "bg-green-500/10 text-green-600 border-green-600/20"
+                                  : "bg-ink/5 text-ink/40 border-ink/10"
+                              )}
+                            >
+                              {depTask?.title || depId}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -297,14 +364,28 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
               </div>
 
               <div className="mt-4 flex items-center justify-between">
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   {task.status !== 'completed' && task.status !== 'running' && (
-                    <button 
-                      onClick={() => updateTaskStatus(task.id, 'running')}
-                      className="flex items-center gap-1 text-[9px] font-bold uppercase px-2 py-1 border border-ink hover:bg-ink hover:text-bg transition-all"
-                    >
-                      <Play className="w-2 h-2" /> Start
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        disabled={!areDependenciesMet(task)}
+                        onClick={() => updateTaskStatus(task.id, 'running')}
+                        className={cn(
+                          "flex items-center gap-1 text-[9px] font-bold uppercase px-2 py-1 border transition-all",
+                          areDependenciesMet(task)
+                            ? "border-ink hover:bg-ink hover:text-bg"
+                            : "border-ink/10 text-ink/20 cursor-not-allowed"
+                        )}
+                      >
+                        <Play className="w-2 h-2" /> Start
+                      </button>
+                      {!areDependenciesMet(task) && (
+                        <div className="flex items-center gap-1 text-[8px] text-red-500 font-bold uppercase animate-pulse">
+                          <AlertTriangle className="w-2 h-2" />
+                          Blocked by dependencies
+                        </div>
+                      )}
+                    </div>
                   )}
                   {task.status === 'running' && (
                     <button 

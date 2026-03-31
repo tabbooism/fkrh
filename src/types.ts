@@ -70,9 +70,27 @@ export interface Task {
   assignee: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   priority: 'low' | 'medium' | 'high';
+  dependencies: string[];
   progress: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ExploitResult {
+  id: string;
+  url: string;
+  vector: string;
+  payload: string;
+  success: boolean;
+  evidence: string;
+  timestamp: string;
+}
+
+export interface OffensiveState {
+  targetUrl: string;
+  isScanning: boolean;
+  results: ExploitResult[];
+  logs: string[];
 }
 
 export interface InvestigationState {
@@ -87,6 +105,7 @@ export interface InvestigationState {
   tasks: Task[];
   entities: Entity[];
   relationships: Relationship[];
+  offensive: OffensiveState;
 }
 
 export type OSINTCategory = 
@@ -100,4 +119,6 @@ export type OSINTCategory =
   | 'ai'
   | 'runehall'
   | 'monitoring'
-  | 'tasks';
+  | 'tasks'
+  | 'reporting'
+  | 'offensive';

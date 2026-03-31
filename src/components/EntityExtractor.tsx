@@ -40,7 +40,27 @@ export function EntityExtractor({ state, onUpdateState }: EntityExtractorProps) 
         }
       });
 
-      const result = JSON.parse(response.text || '{}');
+      let responseText = response.text || '{}';
+      // Clean up potential markdown if the model ignored responseMimeType
+      if (responseText.includes('```json')) {
+        responseText = responseText.split('```json')[1].split('```')[0].trim();
+      } else if (responseText.includes('```')) {
+        responseText = responseText.split('```')[1].split('```')[0].trim();
+      }
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        // Fallback: try to find the first { and last }
+        const start = responseText.indexOf('{');
+        const end = responseText.lastIndexOf('}');
+        if (start !== -1 && end !== -1) {
+          result = JSON.parse(responseText.substring(start, end + 1));
+        } else {
+          throw e;
+        }
+      }
       setExtracted(result);
     } catch (error) {
       console.error("Extraction failed:", error);

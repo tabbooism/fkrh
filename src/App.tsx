@@ -21,6 +21,7 @@ import {
   Terminal, 
   FileText, 
   AlertTriangle,
+  ShieldAlert,
   ChevronRight,
   Loader2,
   Send,
@@ -31,7 +32,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { cn } from './lib/utils';
 import { TargetData, ContextualInfo, InvestigationState, OSINTCategory } from './types';
@@ -41,7 +42,9 @@ import { TargetDistribution } from './components/TargetDistribution';
 import { EntityExtractor } from './components/EntityExtractor';
 import { InvestigationFlows } from './components/InvestigationFlows';
 import { TaskManagement } from './components/TaskManagement';
+import { NightFury } from './components/NightFury';
 import GraphVisualization from './components/GraphVisualization';
+import { generateInvestigationReport } from './services/reportService';
 
 const INITIAL_STATE: InvestigationState = {
   targets: {
@@ -65,7 +68,13 @@ const INITIAL_STATE: InvestigationState = {
   notes: '',
   tasks: [],
   entities: [],
-  relationships: []
+  relationships: [],
+  offensive: {
+    targetUrl: '',
+    isScanning: false,
+    results: [],
+    logs: []
+  }
 };
 
 const RUNEHALL_CASE: InvestigationState = {
@@ -190,7 +199,13 @@ const RUNEHALL_CASE: InvestigationState = {
     { id: 'r7', source: 'e4', target: 'e9', type: 'uses', strength: 0.7 },
     { id: 'r8', source: 'e9', target: 'e1', type: 'admin', strength: 1.0 },
     { id: 'r9', source: 'e6', target: 'e1', type: 'payment_method', strength: 0.5 },
-  ]
+  ],
+  offensive: {
+    targetUrl: 'https://runehall.com',
+    isScanning: false,
+    results: [],
+    logs: []
+  }
 };
 
 const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; description: string }[] = [
@@ -204,6 +219,8 @@ const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; des
   { id: 'archival', label: 'Archival', icon: <Archive className="w-4 h-4" />, description: 'Wayback Machine, Historical data' },
   { id: 'ai', label: 'AI Analysis', icon: <Cpu className="w-4 h-4" />, description: 'Correlate data points with Gemini' },
   { id: 'monitoring', label: 'Monitoring', icon: <AlertTriangle className="w-4 h-4" />, description: 'Automated alerts & Dark Web strategy' },
+  { id: 'reporting', label: 'Reporting', icon: <FileText className="w-4 h-4" />, description: 'Generate comprehensive investigation reports' },
+  { id: 'offensive', label: 'Offensive', icon: <ShieldAlert className="w-4 h-4" />, description: 'NightFury Ultima: Exploit scanning & Payload injection' },
   { id: 'tasks', label: 'Tasks', icon: <ListTodo className="w-4 h-4" />, description: 'Track investigation progress & assignments' },
 ];
 
@@ -247,6 +264,9 @@ export default function App() {
         if (data.type === 'UPDATE_STATE' || data.type === 'SYNC_STATE') {
           isRemoteUpdate.current = true;
           setState(data.payload);
+        } else if (data.type === 'OFFENSIVE_LOG' || data.type === 'OFFENSIVE_RESULT') {
+          // Forward offensive messages to the window for NightFury component to catch
+          window.postMessage(data, '*');
         }
       } catch (e) {
         console.error('Failed to parse socket message:', e);
@@ -736,6 +756,7 @@ export default function App() {
                         targets={state.targets} 
                         state={state}
                         onUpdateState={(newState) => setState(prev => ({ ...prev, ...newState }))}
+                        onExportSession={exportSession}
                         deepDiveMode={deepDiveMode}
                         filterOverride={filterOverride}
                       />
@@ -902,11 +923,12 @@ function TargetInput({ label, type, values, onAdd, onRemove }: {
   );
 }
 
-function CategoryTools({ category, targets, state, onUpdateState, deepDiveMode, filterOverride }: { 
+function CategoryTools({ category, targets, state, onUpdateState, onExportSession, deepDiveMode, filterOverride }: { 
   category: OSINTCategory; 
   targets: TargetData; 
   state: InvestigationState;
   onUpdateState: (newState: Partial<InvestigationState>) => void;
+  onExportSession: () => void;
   deepDiveMode: boolean;
   filterOverride: boolean;
 }) {
@@ -952,10 +974,51 @@ function CategoryTools({ category, targets, state, onUpdateState, deepDiveMode, 
           config: {
             tools: [{ googleSearch: {} }],
             responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            }
           }
         });
 
-        const parsed = JSON.parse(response.text || "[]");
+        let text = response.text || "[]";
+        
+        // Advanced JSON extraction
+        const extractJson = (str: string) => {
+          // Try direct parse first
+          try { return JSON.parse(str); } catch (e) {}
+          
+          // Try to find the first [ and last ]
+          const start = str.indexOf('[');
+          const end = str.lastIndexOf(']');
+          if (start !== -1 && end !== -1) {
+            try {
+              return JSON.parse(str.substring(start, end + 1));
+            } catch (e) {}
+          }
+          
+          // Try to clean up common markdown issues
+          const cleaned = str
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim();
+          
+          try { return JSON.parse(cleaned); } catch (e) {}
+          
+          // Last resort: regex for array
+          const match = str.match(/\[.*\]/s);
+          if (match) {
+            try { return JSON.parse(match[0]); } catch (e) {}
+          }
+          
+          return null;
+        };
+
+        const parsed = extractJson(text);
+        if (!parsed) {
+          throw new Error("Failed to parse AI response as JSON array.");
+        }
+        
         const steps = Array.isArray(parsed) ? parsed : [];
         
         let currentStep = 0;
@@ -1556,6 +1619,115 @@ function CategoryTools({ category, targets, state, onUpdateState, deepDiveMode, 
             customContent: (
               <div className="mt-4">
                 <TaskManagement state={state} onUpdateState={onUpdateState} />
+              </div>
+            )
+          }
+        ];
+      case 'reporting':
+        return [
+          {
+            name: 'Investigation Report Generator',
+            description: 'Compile all current OSINT data, entities, relationships, and task progress into a professional PDF report.',
+            tools: ['PDF Engine', 'AutoTable'],
+            fullWidth: true,
+            customContent: (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white border border-ink p-6 shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-lg font-bold uppercase italic mb-2">Comprehensive PDF Report</h4>
+                    <p className="text-[10px] opacity-60 font-mono mb-6">
+                      Automatically generates a multi-page document containing:
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>Executive Summary & Context</li>
+                        <li>Target Data (Domains, Emails, etc.)</li>
+                        <li>Identified Intel Targets</li>
+                        <li>Breach History & Data Leaks</li>
+                        <li>Task Progress & Assignments</li>
+                      </ul>
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => generateInvestigationReport(state)}
+                    className="w-full bg-ink text-bg text-[10px] font-bold uppercase tracking-widest py-3 hover:bg-ink/90 transition-all flex items-center justify-center gap-2"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Generate PDF Report
+                  </button>
+                </div>
+
+                <div className="bg-ink text-bg p-6 border border-ink flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-lg font-bold uppercase italic mb-2 text-white">Session Export (JSON)</h4>
+                    <p className="text-[10px] opacity-60 font-mono mb-6">
+                      Export the raw investigation state as a JSON file for backup or import into other RUNEOSINT instances.
+                    </p>
+                  </div>
+                  <button 
+                    onClick={onExportSession}
+                    className="w-full bg-bg text-ink text-[10px] font-bold uppercase tracking-widest py-3 hover:bg-bg/90 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export Session Data
+                  </button>
+                </div>
+              </div>
+            )
+          }
+        ];
+      case 'offensive':
+        return [
+          {
+            name: 'NightFury Ultima Scanner',
+            tools: [],
+            fullWidth: true,
+            description: 'Initialize production offensive framework for authorized penetration testing.',
+            customContent: (
+              <div className="mt-4">
+                <NightFury state={state} onUpdateState={onUpdateState} />
+              </div>
+            )
+          },
+          {
+            name: 'Vulnerability Assessment',
+            description: 'Identify potential entry points and vulnerabilities in the target infrastructure.',
+            tools: ['SQLi Scan', 'XSS Audit', 'RCE Check', 'LFI/RFI Probe', 'SSRF Test'],
+            customContent: (
+              <div className="mt-4 space-y-2">
+                <div className="flex gap-2">
+                  <input 
+                    className="flex-1 bg-transparent border border-ink/20 p-1 text-[10px] outline-none"
+                    placeholder="Target URL"
+                    id="vuln-target"
+                    defaultValue={state.targets.domains[0] || ''}
+                  />
+                  <button 
+                    onClick={() => {
+                      const targetInput = document.getElementById('vuln-target') as HTMLInputElement;
+                      if (targetInput.value) {
+                        runTool('Vulnerability Assessment', targetInput.value);
+                      }
+                    }}
+                    className="bg-red-600 text-white px-3 py-1 text-[10px] font-bold uppercase"
+                  >
+                    Scan
+                  </button>
+                </div>
+              </div>
+            )
+          },
+          {
+            name: 'Infrastructure Recon',
+            description: 'Deep reconnaissance on target infrastructure and network topology.',
+            tools: ['Subdomain Enumeration', 'Port Scan', 'Service Fingerprinting', 'WAF Detection'],
+            customContent: (
+              <div className="mt-4">
+                <button 
+                  onClick={() => runTool('Infrastructure Recon', state.targets.domains[0])}
+                  className="w-full border border-ink text-ink text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-ink hover:text-bg transition-all flex items-center justify-center gap-2"
+                >
+                  <Terminal className="w-3 h-3" />
+                  Run Full Recon Scan
+                </button>
               </div>
             )
           }
