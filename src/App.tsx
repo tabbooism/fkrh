@@ -980,19 +980,31 @@ function CategoryTools({ category, targets, state, onUpdateState, deepDiveMode, 
             }
           }
         }, deepDiveMode ? 200 : 400);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Tool execution failed:', error);
         let errorMessage = 'Unknown error';
+        
+        // Handle 429 / Quota Exceeded with exponential backoff
+        const errorStr = error instanceof Error ? error.message : String(error);
+        const isQuotaError = errorStr.includes('429') || 
+                            errorStr.includes('RESOURCE_EXHAUSTED') || 
+                            (error?.status === 429) ||
+                            (error?.error?.code === 429);
+
+        if (isQuotaError && attempt < 4) {
+          const backoff = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+          setTerminalOutput(prev => [
+            ...prev, 
+            `[SYSTEM] Quota limit hit (429).`,
+            `[SYSTEM] Retrying in ${(backoff / 1000).toFixed(1)}s (Attempt ${attempt + 1}/4)...`
+          ]);
+          setTimeout(() => execute(attempt + 1), backoff);
+          return;
+        }
+
         if (error instanceof Error) {
           errorMessage = error.message;
-          if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-            if (attempt < 2) {
-              setTerminalOutput(prev => [...prev, `[SYSTEM] Quota limit hit. Retrying with exponential backoff (Attempt ${attempt + 1})...`]);
-              setTimeout(() => execute(attempt + 1), 2000 * attempt);
-              return;
-            }
-            errorMessage = 'API Quota Exceeded. System override failed after multiple attempts.';
-          } else if (errorMessage.startsWith('{')) {
+          if (errorMessage.startsWith('{')) {
             try {
               const parsedError = JSON.parse(errorMessage);
               errorMessage = parsedError.error?.message || errorMessage;
@@ -1000,8 +1012,15 @@ function CategoryTools({ category, targets, state, onUpdateState, deepDiveMode, 
               // Not JSON, keep original
             }
           }
+        } else if (typeof error === 'object' && error !== null) {
+          errorMessage = error.message || error.error?.message || JSON.stringify(error);
         }
-        setTerminalOutput(prev => [...prev, `[ERROR] Failed to initialize ${toolName}.`, `[ERROR] ${errorMessage}`]);
+
+        setTerminalOutput(prev => [
+          ...prev, 
+          `[ERROR] Failed to initialize ${toolName}.`, 
+          `[ERROR] ${errorMessage}`
+        ]);
         setIsProcessing(false);
       }
     };
