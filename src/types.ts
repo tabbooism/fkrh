@@ -50,11 +50,13 @@ export interface BreachResult {
 
 export interface Task {
   id: string;
-  name: string;
-  target: string;
-  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  title: string;
+  description: string;
+  assignee: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
-  timestamp: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InvestigationState {
@@ -67,8 +69,6 @@ export interface InvestigationState {
   context: ContextualInfo;
   notes: string;
   tasks: Task[];
-  isPremium: boolean;
-  credits: number;
 }
 
 export type OSINTCategory = 
@@ -81,4 +81,5 @@ export type OSINTCategory =
   | 'archival' 
   | 'ai'
   | 'runehall'
-  | 'monitoring';
+  | 'monitoring'
+  | 'tasks';

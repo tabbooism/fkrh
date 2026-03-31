@@ -24,7 +24,8 @@ import {
   ChevronRight,
   Loader2,
   Send,
-  Download
+  Download,
+  ListTodo
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
@@ -36,6 +37,7 @@ import { BreachTimeline } from './components/BreachTimeline';
 import { TargetDistribution } from './components/TargetDistribution';
 import { EntityExtractor } from './components/EntityExtractor';
 import { InvestigationFlows } from './components/InvestigationFlows';
+import { TaskManagement } from './components/TaskManagement';
 
 const INITIAL_STATE: InvestigationState = {
   targets: {
@@ -56,7 +58,8 @@ const INITIAL_STATE: InvestigationState = {
     industry: '',
     relationships: ''
   },
-  notes: ''
+  notes: '',
+  tasks: []
 };
 
 const RUNEHALL_CASE: InvestigationState = {
@@ -158,7 +161,8 @@ const RUNEHALL_CASE: InvestigationState = {
     industry: 'OSRS Gambling / RSPS',
     relationships: 'RuneHall, RuneBet, CheapGP, RuneHall Properties Limited (UK)'
   },
-  notes: 'RuneHall rebranded from RuneBet. UK company RUNEHALL PROPERTIES LIMITED (04407884) might be unrelated but shares name. Site uses Cloudflare. Multiple scam reports on Trustpilot and Sythe regarding withdrawal issues.'
+  notes: 'RuneHall rebranded from RuneBet. UK company RUNEHALL PROPERTIES LIMITED (04407884) might be unrelated but shares name. Site uses Cloudflare. Multiple scam reports on Trustpilot and Sythe regarding withdrawal issues.',
+  tasks: []
 };
 
 const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; description: string }[] = [
@@ -172,6 +176,7 @@ const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; des
   { id: 'archival', label: 'Archival', icon: <Archive className="w-4 h-4" />, description: 'Wayback Machine, Historical data' },
   { id: 'ai', label: 'AI Analysis', icon: <Cpu className="w-4 h-4" />, description: 'Correlate data points with Gemini' },
   { id: 'monitoring', label: 'Monitoring', icon: <AlertTriangle className="w-4 h-4" />, description: 'Automated alerts & Dark Web strategy' },
+  { id: 'tasks', label: 'Tasks', icon: <ListTodo className="w-4 h-4" />, description: 'Track investigation progress & assignments' },
 ];
 
 export default function App() {
@@ -1274,6 +1279,20 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
           },
           { name: 'Correlate Data', commands: ['Analyze all targets for hidden links'], tools: ['Gemini Pro'] },
           { name: 'Pattern Recognition', tools: ['Gemini Flash'], description: 'Identify behavioral patterns in target activity' },
+        ];
+      case 'tasks':
+        return [
+          { 
+            name: 'Task Management', 
+            tools: [], 
+            fullWidth: true,
+            description: 'Coordinate investigation efforts and track progress.',
+            customContent: (
+              <div className="mt-4">
+                <TaskManagement state={state} onUpdateState={onUpdateState} />
+              </div>
+            )
+          }
         ];
       default:
         return [];
