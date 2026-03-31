@@ -8,13 +8,53 @@ export interface TargetData {
   other: string[];
 }
 
+export interface IntelTarget {
+  id: string;
+  username: string;
+  status: 'UNINVESTIGATED' | 'REPORT READY' | 'DEEP DIVE';
+  source: string;
+  timestamp: string;
+  eventId?: string;
+}
+
+export interface AffiliateCode {
+  code: string;
+  url: string;
+}
+
+export interface UserProfile {
+  id: string;
+  encoded: string;
+  decoded: string;
+}
+
 export interface ContextualInfo {
   industry: string;
   relationships: string;
 }
 
+export interface FinancialRecord {
+  id: string;
+  name: string;
+  amount: string;
+  timestamp?: string;
+}
+
+export interface BreachResult {
+  target: string;
+  source: string;
+  found: boolean;
+  details: string[];
+  timestamp: string;
+}
+
 export interface InvestigationState {
   targets: TargetData;
+  intelTargets: IntelTarget[];
+  affiliates: AffiliateCode[];
+  profiles: UserProfile[];
+  financialRecords: FinancialRecord[];
+  breachHistory: BreachResult[];
   context: ContextualInfo;
   notes: string;
 }
@@ -27,4 +67,6 @@ export type OSINTCategory =
   | 'graph' 
   | 'geospatial' 
   | 'archival' 
-  | 'ai';
+  | 'ai'
+  | 'runehall'
+  | 'monitoring';
