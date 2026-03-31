@@ -80,11 +80,14 @@ export function InvestigationFlows({ state, onUpdateState }: InvestigationFlowsP
         const step = selectedFlow.steps[i];
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
-          contents: `Perform an automated OSINT step for the flow "${selectedFlow.name}".
+          contents: `Perform a real-world OSINT investigation step for the flow "${selectedFlow.name}".
           Step: ${step.name} using tool ${step.tool}.
           Target: ${selectedTarget}.
           
-          Provide a technical summary of the findings (simulated but realistic).`,
+          Use Google Search to find real data. Provide a technical summary of the real findings discovered. Do NOT simulate.`,
+          config: {
+            tools: [{ googleSearch: {} }],
+          }
         });
 
         stepResults.push(`### ${step.name}\n${response.text || 'No data retrieved.'}`);

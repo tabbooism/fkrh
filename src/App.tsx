@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { 
   Shield, 
   Search, 
@@ -192,6 +192,30 @@ export default function App() {
   const [showLiveScan, setShowLiveScan] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const socketRef = useRef<WebSocket | null>(null);
+  const isRemoteUpdate = useRef(false);
+
+  React.useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${protocol}//${window.location.host}`);
+    socketRef.current = socket;
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'UPDATE_STATE' || data.type === 'SYNC_STATE') {
+          isRemoteUpdate.current = true;
+          setState(data.payload);
+        }
+      } catch (e) {
+        console.error('Failed to parse socket message:', e);
+      }
+    };
+
+    return () => {
+      socket.close();
+    };
+  }, []);
 
   React.useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -202,6 +226,14 @@ export default function App() {
 
   React.useEffect(() => {
     localStorage.setItem('osint_session', JSON.stringify(state));
+    
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      if (isRemoteUpdate.current) {
+        isRemoteUpdate.current = false;
+      } else {
+        socketRef.current.send(JSON.stringify({ type: 'UPDATE_STATE', payload: state }));
+      }
+    }
   }, [state]);
 
   const addTarget = (type: keyof TargetData, value: string) => {
@@ -231,7 +263,7 @@ export default function App() {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       const prompt = `
-        As an OSINT expert, analyze the following target data and provide a strategic investigation plan.
+        As an OSINT expert, perform a real-world, deep analysis on the following target data using Google Search to find real, up-to-date information.
         
         TARGETS:
         - Domains: ${state.targets.domains.join(', ') || 'None'}
@@ -249,15 +281,21 @@ export default function App() {
         ${state.notes || 'None'}
         
         Please provide:
-        1. High-level summary of the target profile.
-        2. Priority pivots (which data points to investigate first).
+        1. High-level summary of the target profile with real-world data.
+        2. Priority pivots (which real data points to investigate first).
         3. Specific tools and techniques from the ADVANCED OSINT INVESTIGATION FRAMEWORK that are most relevant here.
         4. Potential risks or operational security (OPSEC) considerations.
+        
+        Identify real hidden connections, potential pivots, and security risks. Provide an extensive report with real data, links, and actionable intelligence.
+        Format your response in professional Markdown with clear headings.
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+        }
       });
 
       setAiResponse(response.text || 'No response generated.');
@@ -765,12 +803,14 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Simulate the output of an OSINT tool named "${toolName}" scanning the target "${target}". 
-        Provide a realistic sequence of 5-8 log messages. 
-        Include technical details relevant to ${category}. 
-        If it's a breach scan, include mentions of specific database leaks (e.g., "LinkedIn 2016", "Canva 2019", "ComboList").
-        Format as a JSON array of strings.`,
+        contents: `Perform a real-time OSINT search using the tool/method "${toolName}" for the target "${target}". 
+        Provide an extensive and detailed report of real findings discovered via search. 
+        Focus on technical details relevant to ${category}. 
+        If it's a breach scan, identify real known leaks associated with this target or similar patterns.
+        Format the output as a JSON array of strings, where each string is a detailed finding or log entry. 
+        Do NOT simulate; provide the most accurate real-world data available.`,
         config: {
+          tools: [{ googleSearch: {} }],
           responseMimeType: "application/json",
         }
       });
@@ -803,7 +843,7 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
         }
       }, 400);
     } catch (error) {
-      console.error('Tool simulation failed:', error);
+      console.error('Tool execution failed:', error);
       setTerminalOutput(prev => [...prev, `[ERROR] Failed to initialize ${toolName}.`, `[ERROR] ${error instanceof Error ? error.message : 'Unknown error'}`]);
       setIsProcessing(false);
     }
