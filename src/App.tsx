@@ -30,6 +30,9 @@ import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { cn } from './lib/utils';
 import { TargetData, ContextualInfo, InvestigationState, OSINTCategory } from './types';
+import { NetworkGraph } from './components/NetworkGraph';
+import { BreachTimeline } from './components/BreachTimeline';
+import { TargetDistribution } from './components/TargetDistribution';
 
 const INITIAL_STATE: InvestigationState = {
   targets: {
@@ -988,6 +991,16 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
           { name: 'WHOIS & History', tools: ['whois', 'securitytrails.com', 'domaintools.com'] },
           { name: 'Reverse IP', tools: ['viewdns.info/reverseip', 'spyse.com', 'zoomeye.org'] },
           { name: 'Port Scanning', tools: ['shodan.io', 'censys.io', 'nmap'] },
+          {
+            name: 'Target Analysis',
+            tools: [],
+            description: 'Statistical breakdown of current investigation targets.',
+            customContent: (
+              <div className="mt-4">
+                <TargetDistribution state={state} />
+              </div>
+            )
+          },
         ];
       case 'social':
         return [
@@ -1092,9 +1105,31 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
           },
           { name: 'Search Engines', tools: ['Ahmia', 'Tor66', 'Not Evil', 'Haystak'] },
           { name: 'Marketplaces & Forums', tools: ['BreachForums', 'Dread', 'Dark.fail'] },
+          {
+            name: 'Breach Visualization',
+            tools: [],
+            fullWidth: true,
+            description: 'Visual representation of breach data over time and by source.',
+            customContent: (
+              <div className="mt-4">
+                <BreachTimeline state={state} />
+              </div>
+            )
+          },
         ];
       case 'graph':
         return [
+          { 
+            name: 'Relationship Visualization', 
+            tools: [], 
+            fullWidth: true,
+            description: 'Interactive network graph showing connections between targets and intel.',
+            customContent: (
+              <div className="mt-4">
+                <NetworkGraph state={state} />
+              </div>
+            )
+          },
           { name: 'Automated OSINT', tools: ['SpiderFoot', 'Maltego', 'IntelTechniques'] },
           { name: 'Custom Scripts', tools: ['NetworkX', 'Python Scrapers'] },
         ];
@@ -1145,8 +1180,11 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {tools.map((tool, idx) => (
-          <div key={idx} className="border border-ink p-6 bg-white shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]">
+        {tools.map((tool: any, idx) => (
+          <div key={idx} className={cn(
+            "border border-ink p-6 bg-white shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]",
+            tool.fullWidth && "md:col-span-2"
+          )}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold uppercase italic tracking-tighter text-lg">{tool.name}</h3>
               <Terminal className="w-4 h-4 opacity-30" />
