@@ -35,6 +35,7 @@ import { NetworkGraph } from './components/NetworkGraph';
 import { BreachTimeline } from './components/BreachTimeline';
 import { TargetDistribution } from './components/TargetDistribution';
 import { EntityExtractor } from './components/EntityExtractor';
+import { InvestigationFlows } from './components/InvestigationFlows';
 
 const INITIAL_STATE: InvestigationState = {
   targets: {
@@ -1156,6 +1157,17 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
         ];
       case 'graph':
         return [
+          { 
+            name: 'Automated Investigation Flows', 
+            tools: [], 
+            fullWidth: true,
+            description: 'Execute pre-defined sequences of OSINT tools for rapid reconnaissance.',
+            customContent: (
+              <div className="mt-4">
+                <InvestigationFlows state={state} onUpdateState={onUpdateState} />
+              </div>
+            )
+          },
           { 
             name: 'Relationship Visualization', 
             tools: [], 
