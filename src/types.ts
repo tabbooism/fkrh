@@ -69,6 +69,7 @@ export interface Task {
   description: string;
   assignee: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  priority: 'low' | 'medium' | 'high';
   progress: number;
   createdAt: string;
   updatedAt: string;

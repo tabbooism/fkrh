@@ -36,7 +36,7 @@ import ReactMarkdown from 'react-markdown';
 import { cn } from './lib/utils';
 import { TargetData, ContextualInfo, InvestigationState, OSINTCategory } from './types';
 import { NetworkGraph } from './components/NetworkGraph';
-import { BreachTimeline } from './components/BreachTimeline';
+import { BreachVisualization } from './components/BreachVisualization';
 import { TargetDistribution } from './components/TargetDistribution';
 import { EntityExtractor } from './components/EntityExtractor';
 import { InvestigationFlows } from './components/InvestigationFlows';
@@ -942,6 +942,8 @@ function CategoryTools({ category, targets, state, onUpdateState, deepDiveMode, 
           ${toolName.includes('Origin IP') || toolName.includes('Cloudflare') || toolName.includes('Origin Scan') ? "Focus on identifying the real backend origin IP address. Bypass CDNs like Cloudflare, Akamai, or Cloudfront. Use SSL history, DNS records, and direct IP scanning techniques." : ""}
           ${toolName.includes('IP Reputation') ? "Query AbuseIPDB, Talos Intelligence, and other reputation services to check for malicious activity, reports, and blacklist status for the IP." : ""}
           ${toolName.includes('Social Media Correlation') ? "Find associated social media accounts across platforms (Twitter, LinkedIn, Facebook, Instagram, etc.) using the provided username or email. Correlate profiles based on bio, profile picture, or shared links." : ""}
+          ${toolName.includes('Dynamic Risk') ? "Identify real-world connections, potential risks, and grounded actionable intelligence. Use Google Search dynamically to find current news, social media mentions, and public records. Assess the threat level and provide specific recommendations." : ""}
+          ${toolName.includes('Threat Assessment') ? "Perform a comprehensive AI-powered threat assessment. Analyze the current targets and contextual information to identify potential risks, vulnerabilities (technical, physical, or reputational), and provide actionable mitigation strategies. Synthesize data from various OSINT sources to build a complete threat profile." : ""}
           
           Focus on technical details relevant to ${category}. 
           If it's a breach scan, identify real known leaks associated with this target or similar patterns.
@@ -1455,7 +1457,7 @@ function CategoryTools({ category, targets, state, onUpdateState, deepDiveMode, 
             description: 'Visual representation of breach data over time and by source.',
             customContent: (
               <div className="mt-4">
-                <BreachTimeline state={state} />
+                <BreachVisualization state={state} />
               </div>
             )
           },
@@ -1500,6 +1502,38 @@ function CategoryTools({ category, targets, state, onUpdateState, deepDiveMode, 
         ];
       case 'ai':
         return [
+          { 
+            name: 'AI Threat Assessment', 
+            description: 'Synthesize OSINT data to identify risks, vulnerabilities, and mitigation strategies.',
+            tools: ['Gemini Pro', 'Google Search'],
+            customContent: (
+              <div className="mt-4">
+                <button 
+                  onClick={() => runTool('AI Threat Assessment')}
+                  className="w-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(20,20,20,1)]"
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  Initialize Threat Assessment
+                </button>
+              </div>
+            )
+          },
+          { 
+            name: 'Dynamic Risk & Connection Analysis', 
+            description: 'Leverage real-time search to identify grounded connections and actionable risks.',
+            tools: ['Google Search', 'Gemini Pro'],
+            customContent: (
+              <div className="mt-4">
+                <button 
+                  onClick={() => runTool('Dynamic Risk & Connection Analysis')}
+                  className="w-full bg-ink text-bg text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-ink/90 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Search className="w-3 h-3" />
+                  Run Dynamic Risk Assessment
+                </button>
+              </div>
+            )
+          },
           { 
             name: 'Entity Extraction', 
             description: 'Automatically extract entities from unstructured text.',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   LineChart, 
   Line, 
@@ -9,11 +9,15 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Cell
+  Cell,
+  LabelList
 } from 'recharts';
 import { InvestigationState } from '../types';
+import { Search, X } from 'lucide-react';
 
-export function BreachTimeline({ state }: { state: InvestigationState }) {
+export function BreachVisualization({ state }: { state: InvestigationState }) {
+  const [selection, setSelection] = useState<{ type: 'year' | 'source', value: string } | null>(null);
+
   // Process breach history for visualization
   const breachData = state.breachHistory.reduce((acc: any[], breach) => {
     // Extract year from timestamp (e.g., "3/28/2026 @ 12:54:41 AM")
@@ -85,8 +89,13 @@ export function BreachTimeline({ state }: { state: InvestigationState }) {
                 dataKey="count" 
                 stroke="#141414" 
                 strokeWidth={2} 
-                dot={{ r: 4, fill: '#141414' }}
-                activeDot={{ r: 6 }}
+                dot={{ r: 4, fill: '#141414', cursor: 'pointer' }}
+                activeDot={{ r: 6, cursor: 'pointer' }}
+                onClick={(data: any) => {
+                  if (data && data.payload && data.payload.year) {
+                    setSelection({ type: 'year', value: data.payload.year });
+                  }
+                }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -118,7 +127,16 @@ export function BreachTimeline({ state }: { state: InvestigationState }) {
                   fontFamily: 'monospace'
                 }}
               />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+              <Bar 
+                dataKey="value" 
+                radius={[0, 4, 4, 0]}
+                onClick={(data) => {
+                  if (data && data.name) {
+                    setSelection({ type: 'source', value: data.name });
+                  }
+                }}
+                className="cursor-pointer"
+              >
                 {sourceData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
@@ -127,6 +145,54 @@ export function BreachTimeline({ state }: { state: InvestigationState }) {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {selection && (
+        <div className="bg-ink text-bg p-4 border border-bg/20 shadow-xl font-mono text-[10px] animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex justify-between items-center mb-4 border-b border-bg/10 pb-2">
+            <div className="flex items-center gap-2">
+              <Search className="w-3 h-3" />
+              <span className="font-bold uppercase tracking-widest">
+                Findings for {selection.type}: {selection.value}
+              </span>
+            </div>
+            <button 
+              onClick={() => setSelection(null)}
+              className="hover:text-red-500 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          
+          <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+            {state.breachHistory
+              .filter(breach => {
+                if (selection.type === 'year') {
+                  return breach.timestamp.includes(selection.value);
+                }
+                return breach.source === selection.value;
+              })
+              .map((breach, i) => (
+                <div key={i} className="border-l-2 border-bg/20 pl-3 py-1 hover:border-bg/50 transition-colors">
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-bold text-white">{breach.target}</span>
+                    <span className="opacity-50 text-[8px]">{breach.timestamp}</span>
+                  </div>
+                  <div className="opacity-70 mb-2">Source: {breach.source}</div>
+                  {breach.details.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+                      {breach.details.map((detail, j) => (
+                        <div key={j} className="flex items-center gap-2 text-[9px] opacity-90">
+                          <div className="w-1 h-1 bg-red-500 rounded-full" />
+                          {detail}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

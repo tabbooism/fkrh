@@ -23,10 +23,12 @@ interface TaskManagementProps {
 
 export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
   const [isAdding, setIsAdding] = useState(false);
+  const [sortByPriority, setSortByPriority] = useState(false);
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
-    assignee: ''
+    assignee: '',
+    priority: 'medium' as Task['priority']
   });
 
   const addTask = () => {
@@ -38,6 +40,7 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
       description: newTask.description,
       assignee: newTask.assignee || 'Unassigned',
       status: 'pending',
+      priority: newTask.priority,
       progress: 0,
       createdAt: new Date().toLocaleString(),
       updatedAt: new Date().toLocaleString()
@@ -47,7 +50,7 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
       tasks: [task, ...state.tasks]
     });
 
-    setNewTask({ title: '', description: '', assignee: '' });
+    setNewTask({ title: '', description: '', assignee: '', priority: 'medium' });
     setIsAdding(false);
   };
 
@@ -72,6 +75,16 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
     });
   };
 
+  const updateTaskPriority = (id: string, priority: Task['priority']) => {
+    onUpdateState({
+      tasks: state.tasks.map(t => t.id === id ? { 
+        ...t, 
+        priority, 
+        updatedAt: new Date().toLocaleString() 
+      } : t)
+    });
+  };
+
   const removeTask = (id: string) => {
     onUpdateState({
       tasks: state.tasks.filter(t => t.id !== id)
@@ -87,10 +100,34 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
     }
   };
 
+  const priorityWeight = {
+    high: 3,
+    medium: 2,
+    low: 1
+  };
+
+  const sortedTasks = [...state.tasks].sort((a, b) => {
+    if (sortByPriority) {
+      return priorityWeight[b.priority] - priorityWeight[a.priority];
+    }
+    return 0; // Keep original order (newest first as per addTask implementation)
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div className="text-[10px] font-bold uppercase opacity-50 tracking-widest">Investigation Backlog</div>
+        <div className="flex items-center gap-4">
+          <div className="text-[10px] font-bold uppercase opacity-50 tracking-widest">Investigation Backlog</div>
+          <button 
+            onClick={() => setSortByPriority(!sortByPriority)}
+            className={cn(
+              "text-[8px] font-bold uppercase px-2 py-0.5 border transition-all",
+              sortByPriority ? "bg-ink text-bg border-ink" : "border-ink/20 opacity-50 hover:opacity-100"
+            )}
+          >
+            Sort by Priority
+          </button>
+        </div>
         <button 
           onClick={() => setIsAdding(true)}
           className="flex items-center gap-2 bg-ink text-bg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-ink/90 transition-all"
@@ -142,6 +179,25 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
                   />
                 </div>
               </div>
+              <div className="flex-1 space-y-2">
+                <label className="text-[9px] font-bold uppercase opacity-40">Priority</label>
+                <div className="flex gap-2">
+                  {(['low', 'medium', 'high'] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setNewTask(prev => ({ ...prev, priority: p }))}
+                      className={cn(
+                        "flex-1 py-1 text-[8px] font-bold uppercase border transition-all",
+                        newTask.priority === p 
+                          ? "bg-ink text-bg border-ink" 
+                          : "border-ink/10 opacity-50 hover:opacity-100"
+                      )}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex items-end gap-2">
                 <button 
                   onClick={() => setIsAdding(false)}
@@ -167,7 +223,7 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
             No active tasks. Initialize investigation steps to populate backlog.
           </div>
         ) : (
-          state.tasks.map((task) => (
+          sortedTasks.map((task) => (
             <div 
               key={task.id}
               className={cn(
@@ -179,13 +235,33 @@ export function TaskManagement({ state, onUpdateState }: TaskManagementProps) {
                 <div className="flex items-start gap-3">
                   <div className="mt-1">{getStatusIcon(task.status)}</div>
                   <div>
-                    <h4 className={cn(
-                      "text-sm font-bold uppercase italic tracking-tight",
-                      task.status === 'completed' && "line-through"
-                    )}>
-                      {task.title}
-                    </h4>
-                    <p className="text-[10px] opacity-60 mt-1 font-mono">{task.description}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className={cn(
+                        "text-sm font-bold uppercase italic tracking-tight",
+                        task.status === 'completed' && "line-through"
+                      )}>
+                        {task.title}
+                      </h4>
+                      <div className="flex gap-1">
+                        {(['low', 'medium', 'high'] as const).map((p) => (
+                          <button
+                            key={p}
+                            onClick={() => updateTaskPriority(task.id, p)}
+                            className={cn(
+                              "text-[7px] font-bold uppercase px-1.5 py-0.5 border transition-all",
+                              task.priority === p 
+                                ? (p === 'high' ? "bg-red-500 text-white border-red-500" :
+                                   p === 'medium' ? "bg-blue-500 text-white border-blue-500" :
+                                   "bg-gray-500 text-white border-gray-500")
+                                : "border-ink/10 opacity-30 hover:opacity-100"
+                            )}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-[10px] opacity-60 font-mono">{task.description}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
