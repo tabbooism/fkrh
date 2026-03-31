@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { InvestigationState, Entity, Relationship } from '../types';
-import { Maximize2, Minimize2, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
+import { Maximize2, Minimize2, ZoomIn, ZoomOut, RefreshCw, Download } from 'lucide-react';
 
 interface GraphVisualizationProps {
   state: InvestigationState;
@@ -148,6 +148,61 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({ state }) => {
     }
   };
 
+  const exportAsJSON = () => {
+    const data = JSON.stringify({
+      entities: state.entities,
+      relationships: state.relationships
+    }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `graph-export-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAsSVG = () => {
+    if (!svgRef.current) return;
+    const svgData = new XMLSerializer().serializeToString(svgRef.current);
+    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `graph-export-${Date.now()}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAsPNG = () => {
+    if (!svgRef.current) return;
+    const svg = svgRef.current;
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    const width = svg.clientWidth;
+    const height = svg.clientHeight;
+    canvas.width = width * 2; // Higher resolution
+    canvas.height = height * 2;
+    
+    img.onload = () => {
+      if (ctx) {
+        ctx.fillStyle = '#E4E3E0'; // Background color
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const pngUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = pngUrl;
+        link.download = `graph-export-${Date.now()}.png`;
+        link.click();
+      }
+    };
+    
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
   return (
     <div 
       ref={containerRef}
@@ -166,6 +221,20 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({ state }) => {
       </div>
 
       <div className="absolute top-4 right-4 z-10 flex gap-2">
+        <div className="flex bg-bg border border-ink/10">
+          <button onClick={exportAsJSON} className="p-2 hover:bg-ink/5 transition-colors border-r border-ink/10" title="Export JSON">
+            <span className="text-[8px] font-bold uppercase mr-1">JSON</span>
+            <Download className="w-3 h-3 inline" />
+          </button>
+          <button onClick={exportAsSVG} className="p-2 hover:bg-ink/5 transition-colors border-r border-ink/10" title="Export SVG">
+            <span className="text-[8px] font-bold uppercase mr-1">SVG</span>
+            <Download className="w-3 h-3 inline" />
+          </button>
+          <button onClick={exportAsPNG} className="p-2 hover:bg-ink/5 transition-colors" title="Export PNG">
+            <span className="text-[8px] font-bold uppercase mr-1">PNG</span>
+            <Download className="w-3 h-3 inline" />
+          </button>
+        </div>
         <button 
           onClick={() => setIsFullscreen(!isFullscreen)} 
           className="p-2 bg-bg border border-ink/10 hover:bg-ink/5 transition-colors"
