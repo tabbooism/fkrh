@@ -113,6 +113,21 @@ export function InvestigationFlows({ state, onUpdateState }: InvestigationFlowsP
       setReport(finalResponse.text || 'Failed to generate report.');
     } catch (error) {
       console.error('Flow execution failed:', error);
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+          errorMessage = 'API Quota Exceeded. Please wait a moment before retrying.';
+        } else if (errorMessage.startsWith('{')) {
+          try {
+            const parsedError = JSON.parse(errorMessage);
+            errorMessage = parsedError.error?.message || errorMessage;
+          } catch (e) {
+            // Not JSON, keep original
+          }
+        }
+      }
+      setReport(`### [ERROR] Flow Execution Interrupted\n\n${errorMessage}`);
       setLogs(prev => prev.map(l => l.status === 'running' ? { ...l, status: 'error' } : l));
     } finally {
       setIsExecuting(false);

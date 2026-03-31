@@ -40,6 +40,21 @@ export interface FinancialRecord {
   timestamp?: string;
 }
 
+export interface Entity {
+  id: string;
+  label: string;
+  type: 'domain' | 'user' | 'ip' | 'email' | 'phone' | 'crypto' | 'other';
+  data?: any;
+}
+
+export interface Relationship {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  strength: number;
+}
+
 export interface BreachResult {
   target: string;
   source: string;
@@ -69,6 +84,8 @@ export interface InvestigationState {
   context: ContextualInfo;
   notes: string;
   tasks: Task[];
+  entities: Entity[];
+  relationships: Relationship[];
 }
 
 export type OSINTCategory = 
