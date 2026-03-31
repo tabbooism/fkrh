@@ -774,7 +774,8 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
         }
       });
 
-      const steps = JSON.parse(response.text || "[]");
+      const parsed = JSON.parse(response.text || "[]");
+      const steps = Array.isArray(parsed) ? parsed : [];
       
       let currentStep = 0;
       const interval = setInterval(() => {
@@ -1217,9 +1218,9 @@ function CategoryTools({ category, targets, state, onUpdateState }: {
           <div className="space-y-1 max-h-32 md:max-h-48 overflow-y-auto custom-scrollbar">
             {terminalOutput.map((line, i) => (
               <div key={i} className={cn(
-                line.startsWith('[SUCCESS]') ? "text-green-400" : 
-                line.startsWith('[ERROR]') ? "text-red-400" : 
-                line.startsWith('[RESULT]') ? "text-blue-400 font-bold" : ""
+                line && line.startsWith('[SUCCESS]') ? "text-green-400" : 
+                line && line.startsWith('[ERROR]') ? "text-red-400" : 
+                line && line.startsWith('[RESULT]') ? "text-blue-400 font-bold" : ""
               )}>
                 {line}
               </div>

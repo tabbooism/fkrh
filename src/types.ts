@@ -48,6 +48,15 @@ export interface BreachResult {
   timestamp: string;
 }
 
+export interface Task {
+  id: string;
+  name: string;
+  target: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  progress: number;
+  timestamp: string;
+}
+
 export interface InvestigationState {
   targets: TargetData;
   intelTargets: IntelTarget[];
@@ -57,6 +66,9 @@ export interface InvestigationState {
   breachHistory: BreachResult[];
   context: ContextualInfo;
   notes: string;
+  tasks: Task[];
+  isPremium: boolean;
+  credits: number;
 }
 
 export type OSINTCategory = 
