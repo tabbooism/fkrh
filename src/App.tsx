@@ -82,87 +82,6 @@ const INITIAL_STATE: InvestigationState = {
   }
 };
 
-const RUNEHALL_CASE: InvestigationState = {
-  targets: {
-    domains: ['runehall.com', 'runehall.net', 'runehall.org', 'rh420.xyz'],
-    usernames: ['murk', 'cheapGP', 'SouthernG', 'No6love9'],
-    emails: ['admin@runehall.com'],
-    names: ['Gary Ronnie Disley'],
-    phones: [],
-    crypto: ['18.4968 LTC'],
-    other: ['github.com/No6love9/nightfury', 'github.com/No6love9/cloutsplayground', 'github.com/No6love9/CloutScapeAgent', '151.0.214.242']
-  },
-  intelTargets: [
-    { id: 'ADM001', username: 'murk', status: 'DEEP DIVE', source: 'RUNEHALL ADMIN PANEL', timestamp: new Date().toLocaleString(), eventId: 'MURK_ADMIN_01' },
-    { id: 'ADM002', username: 'cheapGP', status: 'DEEP DIVE', source: 'RUNEHALL ADMIN PANEL', timestamp: new Date().toLocaleString(), eventId: 'CHEAPGP_ADMIN_01' },
-    { id: 'ADM003', username: 'SouthernG', status: 'DEEP DIVE', source: 'RUNEHALL ADMIN PANEL', timestamp: new Date().toLocaleString(), eventId: 'SOUTHERNG_ADMIN_01' },
-  ],
-  affiliates: [
-    { code: 'CheapGP', url: 'runehall.com/a/CheapGP' },
-    { code: 'SouthernG', url: 'runehall.com/a/SouthernG' },
-    { code: 'murk', url: 'runehall.com/a/murk' },
-  ],
-  profiles: [
-    { id: '1', encoded: btoa('murk'), decoded: 'murk' },
-    { id: '420', encoded: 'QhlYXBHUA==', decoded: 'cheapGP' },
-    { id: '3', encoded: btoa('SouthernG'), decoded: 'SouthernG' },
-  ],
-  endpoints: [
-    { path: '/.well-known/auth', description: 'Likely an authentication endpoint (may expose user tokens or misconfigurations).' },
-    { path: '/account/transactions', description: 'Transaction history (could leak financial data).' },
-    { path: '/casino/plinko', description: 'A casino game (Plinko) – indicates the site hosts gambling.' },
-    { path: '/vault', description: 'Possibly a storage area for funds, items, or user data.' },
-    { path: '/admin/dashboard', description: 'Admin panel access point for murk, cheapGP, SouthernG.' }
-  ],
-  financialRecords: [
-    { id: '1', name: 'murk', amount: '$145,400.00' },
-    { id: '2', name: 'cheapGP', amount: '$89,500.00' },
-    { id: '3', name: 'SouthernG', amount: '$112,925.00' },
-  ],
-  breachHistory: [
-    { 
-      target: 'admin@runehall.com', 
-      source: 'DeHashed', 
-      found: true, 
-      details: ['LinkedIn 2016', 'Adobe 2013'], 
-      timestamp: '2026-03-29 14:20' 
-    }
-  ],
-  context: {
-    industry: 'OSRS Gambling / RSPS',
-    relationships: 'RuneHall Administration: murk, cheapGP, SouthernG. Developer: No6love9.'
-  },
-  notes: 'RuneHall rebranded from RuneBet. UK company RUNEHALL PROPERTIES LIMITED (04407884) might be unrelated but shares name. Site uses Cloudflare. Multiple scam reports on Trustpilot and Sythe regarding withdrawal issues.\n\n[CRITICAL INTEL]: Discovered "NightFury Framework v3.0" authored by No6love9. It is a custom exploitation framework specifically targeting runehall.com with modules like ML-Based RNG Predictor, WebSocket Exploitation, and AI-IDOR.\n\n[ADMIN FOCUS]: Investigation shifted to primary administration targets: murk, cheapGP, and SouthernG.\n\n[INFRASTRUCTURE DISCOVERY]: Identified new domain rh420.xyz resolving to IP 151.0.214.242. Likely a backend or alternative access point.',
-  tasks: [
-    { id: 't1', title: 'Deep dive administration targets', description: 'Deep dive murk, cheapGP, and SouthernG using open-source tools (social media, breach databases, forum archives).', assignee: 'Analyst 1', status: 'pending', priority: 'high', dependencies: [], progress: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: 't6', title: 'Analyze NightFury Framework', description: 'Reverse engineer the NightFury v3.0 framework by No6love9 to understand the specific ML-Based RNG prediction and WebSocket exploits targeting RuneHall.', assignee: 'Analyst 1', status: 'pending', priority: 'high', dependencies: [], progress: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-  ],
-  entities: [
-    { id: 'e1', label: 'runehall.com', type: 'domain' },
-    { id: 'e4', label: 'murk', type: 'user' },
-    { id: 'e5', label: 'cheapGP', type: 'user' },
-    { id: 'e10', label: 'SouthernG', type: 'user' },
-    { id: 'e9', label: 'admin@runehall.com', type: 'email' },
-    { id: 'e11', label: 'rh420.xyz', type: 'domain' },
-    { id: 'e12', label: '151.0.214.242', type: 'ip' },
-  ],
-  relationships: [
-    { id: 'r3', source: 'e4', target: 'e1', type: 'admin', strength: 1.0 },
-    { id: 'r4', source: 'e5', target: 'e1', type: 'admin', strength: 1.0 },
-    { id: 'r10', source: 'e10', target: 'e1', type: 'admin', strength: 1.0 },
-    { id: 'r8', source: 'e9', target: 'e1', type: 'admin', strength: 1.0 },
-    { id: 'r11', source: 'e11', target: 'e12', type: 'resolves_to', strength: 1.0 },
-  ],
-  offensive: {
-    targetUrl: 'https://runehall.com',
-    isScanning: false,
-    results: [],
-    logs: []
-  },
-  threatIntel: [],
-  sshKeys: []
-};
-
 const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; description: string }[] = [
   { id: 'infrastructure', label: 'Infrastructure', icon: <Globe className="w-4 h-4" />, description: 'DNS, WHOIS, Reverse IP, Hosting' },
   { id: 'social', label: 'Social Media', icon: <Users className="w-4 h-4" />, description: 'Username search, Account correlation' },
@@ -412,14 +331,6 @@ export default function App() {
             {filterOverride ? "Filters: OVERRIDDEN" : "Override Filters"}
           </button>
           <button 
-            onClick={() => setState(RUNEHALL_CASE)}
-            className="flex-1 md:flex-none text-[10px] font-bold uppercase tracking-widest border border-bg px-3 py-1.5 hover:bg-bg hover:text-ink transition-all flex items-center justify-center gap-2"
-          >
-            <FileText className="w-3 h-3" />
-            <span className="hidden sm:inline">Load Case Study</span>
-            <span className="sm:hidden">Load Case</span>
-          </button>
-          <button 
             onClick={() => setShowLiveScan(!showLiveScan)}
             className={cn(
               "flex-1 md:flex-none text-[10px] font-bold uppercase tracking-widest border border-bg px-3 py-1.5 transition-all flex items-center justify-center gap-2",
@@ -513,20 +424,13 @@ export default function App() {
 
                   <section className="border-b border-ink/10 pb-6">
                     <h2 className="col-header mb-4">Case Management</h2>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2">
                       <button 
                         onClick={exportSession}
                         className="flex items-center justify-center gap-2 p-2 border border-ink text-[10px] font-bold uppercase tracking-widest hover:bg-ink hover:text-bg transition-all"
                       >
                         <Download className="w-3 h-3" />
                         Export JSON
-                      </button>
-                      <button 
-                        onClick={() => setState(RUNEHALL_CASE)}
-                        className="flex items-center justify-center gap-2 p-2 border border-ink text-[10px] font-bold uppercase tracking-widest hover:bg-ink hover:text-bg transition-all"
-                      >
-                        <FileText className="w-3 h-3" />
-                        Load Case
                       </button>
                     </div>
                   </section>

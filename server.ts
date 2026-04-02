@@ -325,6 +325,99 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  app.post("/api/origin-discovery", async (req, res) => {
+    const { target } = req.body;
+    if (!target) return res.status(400).json({ error: "Target is required" });
+
+    res.json({ status: "started" });
+
+    try {
+      broadcast({ type: "DISCOVERY_LOG", payload: `[*] Initiating Origin IP Discovery for ${target}` });
+      
+      broadcast({ type: "DISCOVERY_LOG", payload: `[*] Resolving current DNS records...` });
+      
+      const dns = require('dns').promises;
+      let originIp = '';
+      let provider = 'Unknown';
+      let asn = 'Unknown';
+      let methods = ['DNS Resolution'];
+
+      try {
+        const addresses = await dns.resolve4(target);
+        if (addresses && addresses.length > 0) {
+          originIp = addresses[0];
+          broadcast({ type: "DISCOVERY_LOG", payload: `[+] DNS resolved to: ${addresses.join(', ')}` });
+          
+          // Check if it's Cloudflare
+          if (originIp.startsWith('104.') || originIp.startsWith('172.') || originIp.startsWith('188.')) {
+             broadcast({ type: "DISCOVERY_LOG", payload: `[!] Target may be behind a CDN (e.g., Cloudflare).` });
+             provider = 'CDN / Cloudflare (Suspected)';
+          } else {
+             provider = 'Direct IP';
+          }
+        } else {
+          broadcast({ type: "DISCOVERY_LOG", payload: `[-] No IPv4 records found for ${target}` });
+        }
+      } catch (dnsError: any) {
+        broadcast({ type: "DISCOVERY_LOG", payload: `[ERROR] DNS resolution failed: ${dnsError.message}` });
+      }
+
+      if (!originIp) {
+        throw new Error("Could not resolve any IP address.");
+      }
+
+      broadcast({ type: "DISCOVERY_LOG", payload: `[SUCCESS] Origin IP identified: ${originIp}` });
+
+      broadcast({
+        type: "DISCOVERY_RESULT",
+        payload: {
+          ip: originIp,
+          provider,
+          asn,
+          confidence: 'Medium',
+          methods
+        }
+      });
+
+    } catch (error: any) {
+      broadcast({ type: "DISCOVERY_LOG", payload: `[ERROR] Discovery failed: ${error.message}` });
+    }
+  });
+
+  app.post("/api/threat-intel/enrich", async (req, res) => {
+    const { targets } = req.body;
+    if (!targets || !Array.isArray(targets)) {
+      return res.status(400).json({ error: "Targets array is required" });
+    }
+
+    try {
+      const prompt = `Analyze the following list of OSINT targets (domains, IPs, emails, usernames) and provide a simulated but realistic threat intelligence enrichment report.
+      
+Targets: ${targets.join(', ')}
+
+Return ONLY a JSON object with a "results" array. Each item in the array should have:
+- target: the specific target string
+- malicious: boolean indicating if it's considered malicious
+- actorProfile: string describing the suspected threat actor or group (e.g., "APT29", "Fin7", "Unknown Cybercriminal")
+- iocs: array of related Indicators of Compromise (strings)
+`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      const data = JSON.parse(response.text || '{"results": []}');
+      res.json(data);
+    } catch (error: any) {
+      console.error("Threat intel enrichment failed:", error);
+      res.status(500).json({ error: "Failed to enrich targets" });
+    }
+  });
+
   app.post("/api/ssh/generate", (req, res) => {
     try {
       const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {

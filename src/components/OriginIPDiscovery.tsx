@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Globe, Search, Server, ShieldAlert, Activity, CheckCircle, XCircle, Plus, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { InvestigationState } from '../types';
@@ -22,7 +22,24 @@ export function OriginIPDiscovery({ state, onUpdateState }: OriginIPDiscoveryPro
   const [logs, setLogs] = useState<string[]>([]);
   const [result, setResult] = useState<DiscoveryResult | null>(null);
 
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'DISCOVERY_LOG') {
+          setLogs(prev => [...prev, data.payload]);
+        } else if (data.type === 'DISCOVERY_RESULT') {
+          setResult(data.payload);
+          setIsScanning(false);
+        }
+      } catch (e) {
+        console.error('Failed to parse WS message', e);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const runDiscovery = async () => {
     if (!target) return;
@@ -31,56 +48,18 @@ export function OriginIPDiscovery({ state, onUpdateState }: OriginIPDiscoveryPro
     setLogs([]);
     setResult(null);
 
-    const addLog = (msg: string) => setLogs(prev => [...prev, msg]);
-
     try {
-      addLog(`[*] Initiating Origin IP Discovery for ${target}`);
-      await delay(800);
-      
-      addLog(`[*] Resolving current DNS records...`);
-      await delay(600);
-      addLog(`[!] Target is behind a CDN (Cloudflare detected).`);
-      await delay(1000);
-      
-      addLog(`[*] Querying Censys for SSL certificate history...`);
-      await delay(1200);
-      addLog(`[+] Found 3 historical certificates matching ${target}`);
-      await delay(800);
-      
-      addLog(`[*] Querying Shodan for historical DNS resolutions...`);
-      await delay(1500);
-      addLog(`[+] Shodan returned 2 potential origin IPs.`);
-      await delay(1000);
-      
-      addLog(`[*] Performing direct IP scanning (HTTP/HTTPS) on candidates...`);
-      await delay(2000);
-      
-      addLog(`[*] Analyzing server responses and SSL hashes...`);
-      await delay(1200);
-
-      let originIp = '151.0.214.242';
-      let provider = 'Hostinger International';
-      let asn = 'AS47583';
-
-      if (!target.includes('runehall') && !target.includes('rh420')) {
-        originIp = `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
-        provider = 'Unknown Hosting Provider';
-        asn = `AS${Math.floor(Math.random() * 90000) + 10000}`;
-      }
-
-      addLog(`[SUCCESS] Origin IP identified: ${originIp}`);
-
-      setResult({
-        ip: originIp,
-        provider,
-        asn,
-        confidence: 'High',
-        methods: ['Censys SSL', 'Shodan History', 'Direct IP Scan']
+      const response = await fetch('/api/origin-discovery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target })
       });
 
+      if (!response.ok) {
+        throw new Error(`Discovery failed to start: ${response.statusText}`);
+      }
     } catch (error: any) {
-      addLog(`[ERROR] Discovery failed: ${error.message}`);
-    } finally {
+      setLogs(prev => [...prev, `[ERROR] Discovery failed: ${error.message}`]);
       setIsScanning(false);
     }
   };

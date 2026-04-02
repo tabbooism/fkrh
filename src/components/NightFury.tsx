@@ -91,12 +91,10 @@ export const NightFury: React.FC<NightFuryProps> = ({ state, onUpdateState }) =>
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl })
-      }).catch(() => ({ ok: false })); // Catch network errors in UI preview
+      });
 
-      // Fallback simulation for the UI preview environment
       if (!response.ok) {
-        await simulateExploitation('STANDARD_RECON');
-        return;
+        throw new Error(`Scan failed to start: ${response.statusText}`);
       }
     } catch (error: any) {
       setLogs(prev => [...prev, `[ERROR] ${error.message}`]);
@@ -109,82 +107,21 @@ export const NightFury: React.FC<NightFuryProps> = ({ state, onUpdateState }) =>
     setIsScanning(true);
     setLogs(prev => [...prev, `[*] Executing Exploitation Chain: ${chainName}`, `[*] Target: ${targetUrl}`]);
     setResults([]);
-    await simulateExploitation(chainName);
-  };
-
-  const simulateExploitation = async (chainName: string) => {
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     
-    const sequence: Record<string, string[]> = {
-      'ELITE_NEXUS': [
-        '[*] Loading modules.exploit.advanced_evasion...',
-        '[+] Polymorphic payload generated successfully',
-        '[*] Applying obfuscation (URL Encoding + Case Manipulation)...',
-        '[TEST] Vector: WEBSOCKET_INJECTION | Target: wss://runehall.com/ws',
-        '[PAYLOAD] {"type":"auth","token":"%27%20oR%201%3D1--"}',
-        '[RESPONSE] Status: 101 Switching Protocols | Length: 0 bytes | Data: ...',
-        '[*] Loading modules.exploit.runehall_websocket...',
-        '[+] WebSocket connection established. Injecting real-time messages...',
-        '[*] Applying obfuscation (Inline Comments)...',
-        '[TEST] Vector: AI_IDOR | Target: /api/v1/users/profile',
-        '[PAYLOAD] id=999999/**/UNION/**/SELECT/**/*/**/FROM/**/admins',
-        '[RESPONSE] Status: 200 OK | Length: 1450 bytes | Data: {"id":1,"username":"murk","role":"admin"}...',
-        '[*] Loading modules.exploit.runehall_idor_ai...',
-        '[+] AI Pattern recognition identified 3 potential IDOR endpoints',
-        '[SUCCESS] ELITE_NEXUS chain completed. Target compromised.'
-      ],
-      'GAME_LOGIC_BREACH': [
-        '[*] Loading modules.exploit.runehall_rng_ml...',
-        '[*] Initializing LSTM/GRU outcome prediction model...',
-        '[+] Model trained on 10,000 previous Plinko drops',
-        '[TEST] Vector: RNG_PREDICT | Target: /api/casino/plinko/drop',
-        '[PAYLOAD] {"seed":"0xdeadbeef","bet":100}',
-        '[RESPONSE] Status: 200 OK | Length: 256 bytes | Data: {"outcome":1000,"hash":"a1b2c3d4e5f6"}...',
-        '[*] Predicting next 5 outcomes...',
-        '[+] Prediction confidence: 89% (v3.0 Enhanced)',
-        '[SUCCESS] Game logic breach successful. Outcomes mapped.'
-      ],
-      'FINANCIAL_EXTRACTION': [
-        '[*] Loading modules.exploit.blockchain_analyzer...',
-        '[+] On-chain transaction analysis initiated',
-        '[TEST] Vector: RACE_CONDITION | Target: /account/withdraw',
-        '[PAYLOAD] {"amount":1000,"address":"1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"} (x50 concurrent)',
-        '[RESPONSE] Status: 200 OK | Length: 128 bytes | Data: {"status":"processing","txid":"pending"}...',
-        '[*] Loading modules.exploit.race_condition_framework...',
-        '[+] Automated timing exploitation active on /account/withdraw',
-        '[SUCCESS] Financial extraction vectors identified.'
-      ],
-      'STANDARD_RECON': [
-        '[*] Bypassing WAF using ML-based evasion (85% success rate)...',
-        '[+] WAF bypassed successfully.',
-        '[TEST] Vector: GRAPHQL_INTROSPECTION | Target: /graphql',
-        '[PAYLOAD] {"query":"{__schema{types{name}}}"}',
-        '[RESPONSE] Status: 200 OK | Length: 8432 bytes | Data: {"data":{"__schema":{"types":[{"name":"User"}...]',
-        '[*] Scanning for Zero-Day logic flaws...',
-        '[+] Found potential GraphQL introspection leak.',
-        '[SUCCESS] Reconnaissance complete.'
-      ]
-    };
+    try {
+      const response = await fetch('/api/nightfury/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: targetUrl, chain: chainName })
+      });
 
-    const logsToRun = sequence[chainName] || sequence['STANDARD_RECON'];
-
-    for (const log of logsToRun) {
-      await delay(800 + Math.random() * 1000);
-      setLogs(prev => [...prev, log]);
-      
-      if (log.includes('[SUCCESS]')) {
-        setResults(prev => [...prev, {
-          id: Math.random().toString(36).substr(2, 9),
-          vector: chainName,
-          url: targetUrl,
-          payload: 'Simulated Payload',
-          success: true,
-          evidence: `Simulated evidence for ${chainName} using NightFury v3.0 modules.`,
-          timestamp: new Date().toISOString()
-        }]);
+      if (!response.ok) {
+        throw new Error(`Chain execution failed to start: ${response.statusText}`);
       }
+    } catch (error: any) {
+      setLogs(prev => [...prev, `[ERROR] ${error.message}`]);
+      setIsScanning(false);
     }
-    setIsScanning(false);
   };
 
   const exportReport = () => {

@@ -38,21 +38,9 @@ export function SSHKeyManager({ state, onUpdateState }: SSHKeyManagerProps) {
         sshKeys: [...state.sshKeys, newKey]
       });
       setNewKeyName('');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating SSH key:", error);
-      // Fallback for demo if backend fails
-      const mockKey: SSHKey = {
-        id: `ssh_${Date.now()}`,
-        name: newKeyName.trim(),
-        publicKey: `ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... mock_key_${Date.now()}@osint`,
-        privateKey: `-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----`,
-        associatedTargets: [],
-        createdAt: new Date().toISOString()
-      };
-      onUpdateState({
-        sshKeys: [...state.sshKeys, mockKey]
-      });
-      setNewKeyName('');
+      alert(`Failed to generate SSH key: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
