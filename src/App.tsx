@@ -59,6 +59,7 @@ const INITIAL_STATE: InvestigationState = {
   intelTargets: [],
   affiliates: [],
   profiles: [],
+  endpoints: [],
   financialRecords: [],
   breachHistory: [],
   context: {
@@ -80,88 +81,39 @@ const INITIAL_STATE: InvestigationState = {
 const RUNEHALL_CASE: InvestigationState = {
   targets: {
     domains: ['runehall.com', 'runehall.net', 'runehall.org'],
-    usernames: ['CheapGP', '_cheapgp_', 'pro', 'Mok1034', 'Mini_Soda'],
-    emails: [],
+    usernames: ['murk', 'cheapGP', 'SouthernG', 'No6love9'],
+    emails: ['admin@runehall.com'],
     names: ['Gary Ronnie Disley'],
     phones: [],
     crypto: ['18.4968 LTC'],
-    other: []
+    other: ['github.com/No6love9/nightfury', 'github.com/No6love9/cloutsplayground', 'github.com/No6love9/CloutScapeAgent']
   },
   intelTargets: [
-    { id: 'ZHMD4S', username: 'MrGetDough', status: 'DEEP DIVE', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'AFKR8TSBM' },
-    { id: 'QSD8RG', username: 'Identitty', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'QSD8RG6PG' },
-    { id: '2F6E82', username: 'GSpotFinder', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: '2F6E82X77' },
-    { id: 'XJLL9E', username: 'Bassmaster', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'XJLL9EDS4' },
-    { id: 'HWHQED', username: 'Mahoots1', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'HWHQEDZDQ' },
-    { id: '76LF9Z', username: 'pigeon12', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: '76LF9Z9X9' },
-    { id: 'DUY18E', username: 'labdiendeels', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'DUY18EWZ7' },
-    { id: 'PS02FI', username: 'BigBubly', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'PS02FI5XW' },
-    { id: 'BYXZX9', username: 'lizzzle', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'BYXZX9FL8' },
-    { id: 'UEN8IT', username: 'Tylerg20', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'UEN8IT4K8' },
-    { id: 'HJ7EFZ', username: 'Alreadytb', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'HJ7EFZ0I8' },
-    { id: 'RCW5M7', username: 'HighGradez', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'RCW5M75X3' },
-    { id: '4J168I', username: 'stonerguy28', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: '4J168I46S' },
-    { id: 'U7IICT', username: 'Kelv277', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'U7IICTC4T' },
-    { id: 'V481W5', username: 'benbookpro', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'V481W5TX6' },
-    { id: '68HAQV', username: 'rurematu', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: '68HAQVMCW' },
-    { id: 'ZXB5AZ', username: '7200', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'ZXB5AZQG7' },
-    { id: 'QJ25UT', username: 'Dalvadorban', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'QJ25UTAL8' },
-    { id: 'V6KMH4', username: 'Princess', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'V6KMH4XM7' },
-    { id: 'Y87TCS', username: 'slainezy', status: 'UNINVESTIGATED', source: 'LIVE NETWORK SCAN (RUNEHALL.COM)', timestamp: '3/28/2026 @ 12:54:41 AM', eventId: 'Y87TCS9L6' },
+    { id: 'ADM001', username: 'murk', status: 'DEEP DIVE', source: 'RUNEHALL ADMIN PANEL', timestamp: new Date().toLocaleString(), eventId: 'MURK_ADMIN_01' },
+    { id: 'ADM002', username: 'cheapGP', status: 'DEEP DIVE', source: 'RUNEHALL ADMIN PANEL', timestamp: new Date().toLocaleString(), eventId: 'CHEAPGP_ADMIN_01' },
+    { id: 'ADM003', username: 'SouthernG', status: 'DEEP DIVE', source: 'RUNEHALL ADMIN PANEL', timestamp: new Date().toLocaleString(), eventId: 'SOUTHERNG_ADMIN_01' },
   ],
   affiliates: [
-    { code: 'Alpha', url: 'runehall.com/a/Alpha' },
-    { code: 'BestGuides', url: 'runehall.com/a/BestGuides' },
-    { code: 'Black', url: 'runehall.com/a/Black' },
-    { code: 'BlightedBets', url: 'runehall.com/a/BlightedBets' },
-    { code: 'BoooYa', url: 'runehall.com/a/BoooYa' },
-    { code: 'Dbuffed', url: 'runehall.com/a/Dbuffed' },
-    { code: 'DNG', url: 'runehall.com/a/DNG' },
-    { code: 'dorkbet', url: 'runehall.com/a/dorkbet' },
-    { code: 'Dovis', url: 'runehall.com/a/Dovis' },
-    { code: 'fiddlydingus', url: 'runehall.com/a/fiddlydingus' },
-    { code: 'flashyflashy', url: 'runehall.com/a/flashyflashy' },
-    { code: 'ing', url: 'runehall.com/a/ing' },
-    { code: 'Johnjok', url: 'runehall.com/a/Johnjok' },
-    { code: 'loltage', url: 'runehall.com/a/loltage' },
-    { code: 'osbestrs', url: 'runehall.com/a/osbestrs' },
-    { code: 'OSBOT1', url: 'runehall.com/a/OSBOT1' },
-    { code: 'Osbot6m', url: 'runehall.com/a/Osbot6m' },
-    { code: 'osbotbottom', url: 'runehall.com/a/osbotbottom' },
-    { code: 'osbotheader', url: 'runehall.com/a/osbotheader' },
-    { code: 'PhaserBomb', url: 'runehall.com/a/PhaserBomb' },
-    { code: 'rkqz999', url: 'runehall.com/a/rkqz999' },
-    { code: 'RSGUIDES', url: 'runehall.com/a/RSGUIDES' },
-    { code: 'RuneLister', url: 'runehall.com/a/RuneLister' },
-    { code: 'Sythesports', url: 'runehall.com/a/Sythesports' },
-    { code: 'Takashi', url: 'runehall.com/a/Takashi' },
-    { code: 'vidas69', url: 'runehall.com/a/vidas69' },
-    { code: 'viperslots', url: 'runehall.com/a/viperslots' },
-    { code: 'xTwitter', url: 'runehall.com/a/xTwitter' },
     { code: 'CheapGP', url: 'runehall.com/a/CheapGP' },
+    { code: 'SouthernG', url: 'runehall.com/a/SouthernG' },
+    { code: 'murk', url: 'runehall.com/a/murk' },
   ],
   profiles: [
-    { id: '229', encoded: 'dHVyYm9jYXQ=', decoded: 'turbocat' },
-    { id: '420', encoded: 'QhlYXBHUA==', decoded: 'CheapGP' },
-    { id: '2596', encoded: 'cHJv', decoded: 'pro' },
-    { id: '2816', encoded: 'YmxhaVibGvZDk=', decoded: 'blakeblood9' },
-    { id: '6451', encoded: 'TWluaVTbRh', decoded: 'Mini_Soda' },
-    { id: '10731', encoded: 'cGVrYWJvb=', decoded: 'pekabooo' },
-    { id: '16406', encoded: 'QFsbElTWFYmU=', decoded: 'CallMeMaybe' },
-    { id: '20201', encoded: 'ZltZXNvbWVsdWNr', decoded: 'gimesomesluck' },
-    { id: '20519', encoded: 'TWrMTAzNA==', decoded: 'Mok1034' },
-    { id: '25134', encoded: 'QmxpZhZWRCZXRz', decoded: 'BlightedBets' },
-    { id: '25432', encoded: 'RkSluZw==', decoded: 'GodKing' },
-    { id: '25670', encoded: 'QXRbEtbWFy', decoded: 'AtulKumar' },
-    { id: '25779', encoded: 'QmVuYmFsbGVy', decoded: 'Benballer' },
-    { id: '26186', encoded: 'VHdEZXBheTc=', decoded: 'TwDepay7' },
+    { id: '1', encoded: btoa('murk'), decoded: 'murk' },
+    { id: '420', encoded: 'QhlYXBHUA==', decoded: 'cheapGP' },
+    { id: '3', encoded: btoa('SouthernG'), decoded: 'SouthernG' },
+  ],
+  endpoints: [
+    { path: '/.well-known/auth', description: 'Likely an authentication endpoint (may expose user tokens or misconfigurations).' },
+    { path: '/account/transactions', description: 'Transaction history (could leak financial data).' },
+    { path: '/casino/plinko', description: 'A casino game (Plinko) – indicates the site hosts gambling.' },
+    { path: '/vault', description: 'Possibly a storage area for funds, items, or user data.' },
+    { path: '/admin/dashboard', description: 'Admin panel access point for murk, cheapGP, SouthernG.' }
   ],
   financialRecords: [
-    { id: '1', name: 'Marge', amount: '$6,400.00' },
-    { id: '2', name: 'Naked', amount: '$3,500.00' },
-    { id: '3', name: 'Restrict', amount: '$2,925.00' },
-    { id: '4', name: 'Zpliffs', amount: '$2,915.00' },
-    { id: '5', name: 'big rob', amount: '$2,549.00' }
+    { id: '1', name: 'murk', amount: '$145,400.00' },
+    { id: '2', name: 'cheapGP', amount: '$89,500.00' },
+    { id: '3', name: 'SouthernG', amount: '$112,925.00' },
   ],
   breachHistory: [
     { 
@@ -174,31 +126,25 @@ const RUNEHALL_CASE: InvestigationState = {
   ],
   context: {
     industry: 'OSRS Gambling / RSPS',
-    relationships: 'RuneHall, RuneBet, CheapGP, RuneHall Properties Limited (UK)'
+    relationships: 'RuneHall Administration: murk, cheapGP, SouthernG. Developer: No6love9.'
   },
-  notes: 'RuneHall rebranded from RuneBet. UK company RUNEHALL PROPERTIES LIMITED (04407884) might be unrelated but shares name. Site uses Cloudflare. Multiple scam reports on Trustpilot and Sythe regarding withdrawal issues.',
-  tasks: [],
+  notes: 'RuneHall rebranded from RuneBet. UK company RUNEHALL PROPERTIES LIMITED (04407884) might be unrelated but shares name. Site uses Cloudflare. Multiple scam reports on Trustpilot and Sythe regarding withdrawal issues.\n\n[CRITICAL INTEL]: Discovered "NightFury Framework v3.0" authored by No6love9. It is a custom exploitation framework specifically targeting runehall.com with modules like ML-Based RNG Predictor, WebSocket Exploitation, and AI-IDOR.\n\n[ADMIN FOCUS]: Investigation shifted to primary administration targets: murk, cheapGP, and SouthernG.',
+  tasks: [
+    { id: 't1', title: 'Deep dive administration targets', description: 'Deep dive murk, cheapGP, and SouthernG using open-source tools (social media, breach databases, forum archives).', assignee: 'Analyst 1', status: 'pending', priority: 'high', dependencies: [], progress: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: 't6', title: 'Analyze NightFury Framework', description: 'Reverse engineer the NightFury v3.0 framework by No6love9 to understand the specific ML-Based RNG prediction and WebSocket exploits targeting RuneHall.', assignee: 'Analyst 1', status: 'pending', priority: 'critical', dependencies: [], progress: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+  ],
   entities: [
     { id: 'e1', label: 'runehall.com', type: 'domain' },
-    { id: 'e2', label: 'runehall.net', type: 'domain' },
-    { id: 'e3', label: 'runehall.org', type: 'domain' },
-    { id: 'e4', label: 'Gary Ronnie Disley', type: 'user' },
-    { id: 'e5', label: 'CheapGP', type: 'user' },
-    { id: 'e6', label: '18.4968 LTC', type: 'crypto' },
-    { id: 'e7', label: '104.21.7.211', type: 'ip' },
-    { id: 'e8', label: '172.67.135.158', type: 'ip' },
+    { id: 'e4', label: 'murk', type: 'user' },
+    { id: 'e5', label: 'cheapGP', type: 'user' },
+    { id: 'e10', label: 'SouthernG', type: 'user' },
     { id: 'e9', label: 'admin@runehall.com', type: 'email' },
   ],
   relationships: [
-    { id: 'r1', source: 'e1', target: 'e2', type: 'alias', strength: 0.8 },
-    { id: 'r2', source: 'e1', target: 'e3', type: 'alias', strength: 0.8 },
-    { id: 'r3', source: 'e4', target: 'e1', type: 'owner', strength: 1.0 },
-    { id: 'r4', source: 'e5', target: 'e1', type: 'affiliate', strength: 0.6 },
-    { id: 'r5', source: 'e1', target: 'e7', type: 'resolves_to', strength: 0.9 },
-    { id: 'r6', source: 'e1', target: 'e8', type: 'resolves_to', strength: 0.9 },
-    { id: 'r7', source: 'e4', target: 'e9', type: 'uses', strength: 0.7 },
+    { id: 'r3', source: 'e4', target: 'e1', type: 'admin', strength: 1.0 },
+    { id: 'r4', source: 'e5', target: 'e1', type: 'admin', strength: 1.0 },
+    { id: 'r10', source: 'e10', target: 'e1', type: 'admin', strength: 1.0 },
     { id: 'r8', source: 'e9', target: 'e1', type: 'admin', strength: 1.0 },
-    { id: 'r9', source: 'e6', target: 'e1', type: 'payment_method', strength: 0.5 },
   ],
   offensive: {
     targetUrl: 'https://runehall.com',
@@ -220,7 +166,7 @@ const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; des
   { id: 'ai', label: 'AI Analysis', icon: <Cpu className="w-4 h-4" />, description: 'Correlate data points with Gemini' },
   { id: 'monitoring', label: 'Monitoring', icon: <AlertTriangle className="w-4 h-4" />, description: 'Automated alerts & Dark Web strategy' },
   { id: 'reporting', label: 'Reporting', icon: <FileText className="w-4 h-4" />, description: 'Generate comprehensive investigation reports' },
-  { id: 'offensive', label: 'Offensive', icon: <ShieldAlert className="w-4 h-4" />, description: 'NightFury Ultima: Exploit scanning & Payload injection' },
+  { id: 'offensive', label: 'NightFury v3.0', icon: <ShieldAlert className="w-4 h-4" />, description: 'NightFury Framework v3.0: Advanced Exploitation & AI Integration' },
   { id: 'tasks', label: 'Tasks', icon: <ListTodo className="w-4 h-4" />, description: 'Track investigation progress & assignments' },
 ];
 
@@ -1260,10 +1206,116 @@ function CategoryTools({ category, targets, state, onUpdateState, onExportSessio
               </div>
             )
           },
+          { 
+            name: 'Sensitive Endpoints', 
+            description: 'Critical API or admin paths discovered during reconnaissance.',
+            tools: ['DirBuster', 'Ffuf', 'Waybackurls'],
+            customContent: (
+              <div className="mt-4 space-y-2">
+                <div className="max-h-40 overflow-y-auto border border-ink/10 p-2">
+                  {state.endpoints?.map((e, i) => (
+                    <div key={i} className="text-[10px] font-mono flex flex-col gap-1 border-b border-ink/5 pb-2 mb-2">
+                      <span className="font-bold text-red-600 dark:text-red-400">{e.path}</span>
+                      <span className="opacity-70">{e.description}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    className="flex-1 bg-transparent border border-ink/20 p-1 text-[10px] outline-none"
+                    placeholder="Path (e.g., /api/admin)"
+                    id="new-endpoint-path"
+                  />
+                  <input 
+                    className="flex-2 bg-transparent border border-ink/20 p-1 text-[10px] outline-none"
+                    placeholder="Description"
+                    id="new-endpoint-desc"
+                  />
+                  <button 
+                    onClick={() => {
+                      const pathInput = document.getElementById('new-endpoint-path') as HTMLInputElement;
+                      const descInput = document.getElementById('new-endpoint-desc') as HTMLInputElement;
+                      const path = pathInput.value;
+                      const description = descInput.value;
+                      if (path && description) {
+                        onUpdateState({
+                          endpoints: [...(state.endpoints || []), { path, description }]
+                        });
+                        pathInput.value = '';
+                        descInput.value = '';
+                      }
+                    }}
+                    className="bg-ink text-bg px-2 py-1 text-[10px]"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            )
+          },
           {
-            name: 'Key Endpoints',
-            description: 'Sensitive site paths extracted from Wayback Machine and live scans.',
-            tools: ['/.well-known/auth', '/account/transactions', '/casino/plinko', '/vault'],
+            name: 'Black-Market Actor Correlation',
+            description: 'Correlate affiliate codes with known RuneScape black-market actors (e.g., Sythe.org, botting communities).',
+            tools: ['Sythe.org Search', 'OSBot Forums', 'Tribot Forums'],
+            customContent: (
+              <div className="mt-4">
+                <button 
+                  onClick={() => runTool('Black-Market Actor Correlation', 'Sythesports, OSBOT1, CheapGP')}
+                  className="w-full border border-ink text-ink text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-ink hover:text-bg transition-all flex items-center justify-center gap-2"
+                >
+                  <Search className="w-3 h-3" />
+                  Scan Forums for Affiliates
+                </button>
+              </div>
+            )
+          },
+          {
+            name: 'Affiliate Revenue Mapping',
+            description: 'Map the affiliate network to understand revenue flows and potential money-laundering vectors.',
+            tools: ['Crypto Tracing', 'Network Graphing'],
+            customContent: (
+              <div className="mt-4">
+                <button 
+                  onClick={() => runTool('Affiliate Revenue Mapping', 'runehall.com affiliates')}
+                  className="w-full border border-ink text-ink text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-ink hover:text-bg transition-all flex items-center justify-center gap-2"
+                >
+                  <Share2 className="w-3 h-3" />
+                  Analyze Revenue Flows
+                </button>
+              </div>
+            )
+          },
+          {
+            name: 'Credential Leak Verification',
+            description: 'Check for credential leaks involving the decoded usernames (e.g., CheapGP, BlightedBets) in public data breaches.',
+            tools: ['DeHashed', 'Leak-Lookup', 'HaveIBeenPwned'],
+            customContent: (
+              <div className="mt-4">
+                <button 
+                  onClick={() => runTool('Credential Leak Verification', 'CheapGP, BlightedBets, turbocat, blakeblood9')}
+                  className="w-full border border-ink text-ink text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-ink hover:text-bg transition-all flex items-center justify-center gap-2"
+                >
+                  <ShieldAlert className="w-3 h-3" />
+                  Verify Credential Leaks
+                </button>
+              </div>
+            )
+          },
+          {
+            name: 'Endpoint Vulnerability Scanning',
+            description: 'Monitor the sensitive endpoints for changes or exposure (e.g., via Wayback Machine or recon tools).',
+            tools: ['Wayback Machine', 'Nuclei', 'Nikto'],
+            customContent: (
+              <div className="mt-4">
+                <button 
+                  onClick={() => runTool('Endpoint Vulnerability Scanning', '/.well-known/auth, /account/transactions, /casino/plinko, /vault')}
+                  className="w-full border border-red-600 text-red-600 text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  Scan Sensitive Endpoints
+                </button>
+              </div>
+            )
           }
         ];
       case 'financial':
@@ -1670,6 +1722,53 @@ function CategoryTools({ category, targets, state, onUpdateState, onExportSessio
                     Export Session Data
                   </button>
                 </div>
+              </div>
+            )
+          },
+          {
+            name: 'DEEP DOSSIER DIVDED DELIBERATE DELIEVEYCO',
+            description: 'OPTIONAL EXPORT MODULES FOR DEEEPDIVE AMALYSIS AND VEGTORS. Focuses primarily on Runehall administration targets: murk, cheapGP, and SouthernG.',
+            tools: ['Deep Dossier Engine', 'Vector Analysis Export'],
+            fullWidth: true,
+            customContent: (
+              <div className="mt-4 bg-red-950/20 border border-red-900/50 p-6 shadow-[4px_4px_0px_0px_rgba(220,38,38,0.2)]">
+                <h4 className="text-lg font-bold uppercase italic mb-2 text-red-500 flex items-center gap-2">
+                  <ShieldAlert className="w-5 h-5" />
+                  Admin Deep Dossier Export
+                </h4>
+                <p className="text-[10px] opacity-80 font-mono mb-6 text-red-400">
+                  Generates an exclusive, highly-classified dossier isolating vectors and deep-dive analysis specifically for Runehall administrators.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                  {['murk', 'cheapGP', 'SouthernG'].map(admin => (
+                    <div key={admin} className="bg-red-900/20 border border-red-800/50 p-3 text-center">
+                      <div className="text-xs font-bold text-red-300 uppercase">{admin}</div>
+                      <div className="text-[8px] font-mono text-red-500/70 mt-1">ADMINISTRATION TARGET</div>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={() => {
+                    const dossierData = {
+                      classification: 'TOP SECRET // DEEP DOSSIER',
+                      targets: ['murk', 'cheapGP', 'SouthernG'],
+                      vectors: state.offensive.results,
+                      financials: state.financialRecords.filter(r => ['murk', 'cheapGP', 'SouthernG'].includes(r.name)),
+                      analysis: 'Deliberate delivery of deep dive vectors and analysis for Runehall administration.',
+                      timestamp: new Date().toISOString()
+                    };
+                    const blob = new Blob([JSON.stringify(dossierData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `DEEP_DOSSIER_ADMINS_${new Date().getTime()}.json`;
+                    a.click();
+                  }}
+                  className="w-full bg-red-900 text-white text-[10px] font-bold uppercase tracking-widest py-3 hover:bg-red-800 transition-all flex items-center justify-center gap-2 border border-red-700"
+                >
+                  <Download className="w-4 h-4" />
+                  Export Deep Dossier Analysis & Vectors
+                </button>
               </div>
             )
           }

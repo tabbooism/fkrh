@@ -93,11 +93,17 @@ export interface OffensiveState {
   logs: string[];
 }
 
+export interface Endpoint {
+  path: string;
+  description: string;
+}
+
 export interface InvestigationState {
   targets: TargetData;
   intelTargets: IntelTarget[];
   affiliates: AffiliateCode[];
   profiles: UserProfile[];
+  endpoints: Endpoint[];
   financialRecords: FinancialRecord[];
   breachHistory: BreachResult[];
   context: ContextualInfo;
