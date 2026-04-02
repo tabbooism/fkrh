@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { createServer } from "http";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import crypto from "crypto";
 
 async function startServer() {
   const app = express();
@@ -322,6 +323,20 @@ async function startServer() {
   // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  app.post("/api/ssh/generate", (req, res) => {
+    try {
+      const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+      });
+      res.json({ publicKey, privateKey });
+    } catch (error) {
+      console.error("Failed to generate SSH key pair:", error);
+      res.status(500).json({ error: "Failed to generate SSH key pair" });
+    }
   });
 
   // Vite middleware for development

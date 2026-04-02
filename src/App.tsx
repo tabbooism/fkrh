@@ -46,6 +46,7 @@ import { TaskManagement } from './components/TaskManagement';
 import { NightFury } from './components/NightFury';
 import { ThreatIntel } from './components/ThreatIntel';
 import { OriginIPDiscovery } from './components/OriginIPDiscovery';
+import { SSHKeyManager } from './components/SSHKeyManager';
 import GraphVisualization from './components/GraphVisualization';
 import { generateInvestigationReport } from './services/reportService';
 
@@ -158,7 +159,8 @@ const RUNEHALL_CASE: InvestigationState = {
     results: [],
     logs: []
   },
-  threatIntel: []
+  threatIntel: [],
+  sshKeys: []
 };
 
 const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; description: string }[] = [
@@ -1432,6 +1434,17 @@ function CategoryTools({ category, targets, state, onUpdateState, onExportSessio
             customContent: (
               <div className="mt-4">
                 <OriginIPDiscovery state={state} onUpdateState={onUpdateState} />
+              </div>
+            )
+          },
+          {
+            name: 'SSH Key Management',
+            tools: [],
+            fullWidth: true,
+            description: 'Store, generate, and associate SSH keys with infrastructure targets for automated access.',
+            customContent: (
+              <div className="mt-4">
+                <SSHKeyManager state={state} onUpdateState={onUpdateState} />
               </div>
             )
           },

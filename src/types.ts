@@ -108,6 +108,15 @@ export interface ThreatIntelAlert {
   relatedTargets?: string[];
 }
 
+export interface SSHKey {
+  id: string;
+  name: string;
+  publicKey: string;
+  privateKey: string;
+  associatedTargets: string[];
+  createdAt: string;
+}
+
 export interface InvestigationState {
   targets: TargetData;
   intelTargets: IntelTarget[];
@@ -123,6 +132,7 @@ export interface InvestigationState {
   relationships: Relationship[];
   offensive: OffensiveState;
   threatIntel: ThreatIntelAlert[];
+  sshKeys: SSHKey[];
 }
 
 export type OSINTCategory = 
