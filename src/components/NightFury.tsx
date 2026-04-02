@@ -160,6 +160,8 @@ export const NightFury: React.FC<NightFuryProps> = ({ state, onUpdateState }) =>
           id: Math.random().toString(36).substr(2, 9),
           vector: chainName,
           url: targetUrl,
+          payload: 'Simulated Payload',
+          success: true,
           evidence: `Simulated evidence for ${chainName} using NightFury v3.0 modules.`,
           timestamp: new Date().toISOString()
         }]);
