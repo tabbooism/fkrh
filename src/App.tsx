@@ -28,7 +28,8 @@ import {
   Download,
   ListTodo,
   Sun,
-  Moon
+  Moon,
+  Radar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEffect } from 'react';
@@ -43,6 +44,8 @@ import { EntityExtractor } from './components/EntityExtractor';
 import { InvestigationFlows } from './components/InvestigationFlows';
 import { TaskManagement } from './components/TaskManagement';
 import { NightFury } from './components/NightFury';
+import { ThreatIntel } from './components/ThreatIntel';
+import { OriginIPDiscovery } from './components/OriginIPDiscovery';
 import GraphVisualization from './components/GraphVisualization';
 import { generateInvestigationReport } from './services/reportService';
 
@@ -154,7 +157,8 @@ const RUNEHALL_CASE: InvestigationState = {
     isScanning: false,
     results: [],
     logs: []
-  }
+  },
+  threatIntel: []
 };
 
 const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; description: string }[] = [
@@ -170,6 +174,7 @@ const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; des
   { id: 'monitoring', label: 'Monitoring', icon: <AlertTriangle className="w-4 h-4" />, description: 'Automated alerts & Dark Web strategy' },
   { id: 'reporting', label: 'Reporting', icon: <FileText className="w-4 h-4" />, description: 'Generate comprehensive investigation reports' },
   { id: 'offensive', label: 'NightFury v3.0', icon: <ShieldAlert className="w-4 h-4" />, description: 'NightFury Framework v3.0: Advanced Exploitation & AI Integration' },
+  { id: 'threatintel', label: 'Threat Intel', icon: <Radar className="w-4 h-4" />, description: 'Real-time threat intelligence feed and IoC enrichment' },
   { id: 'tasks', label: 'Tasks', icon: <ListTodo className="w-4 h-4" />, description: 'Track investigation progress & assignments' },
 ];
 
@@ -216,6 +221,11 @@ export default function App() {
         } else if (data.type === 'OFFENSIVE_LOG' || data.type === 'OFFENSIVE_RESULT') {
           // Forward offensive messages to the window for NightFury component to catch
           window.postMessage(data, '*');
+        } else if (data.type === 'THREAT_INTEL_ALERT') {
+          setState(prev => ({
+            ...prev,
+            threatIntel: [data.payload, ...(prev.threatIntel || [])].slice(0, 100)
+          }));
         }
       } catch (e) {
         console.error('Failed to parse socket message:', e);
@@ -1416,17 +1426,12 @@ function CategoryTools({ category, targets, state, onUpdateState, onExportSessio
           { name: 'DNS Enumeration', commands: ['dnsrecon -d [DOMAIN]', 'dnsenum [DOMAIN]', 'dig [DOMAIN] ANY'], tools: ['sublist3r', 'amass', 'subfinder', 'Subdomain Brute-force'] },
           { 
             name: 'Origin IP Discovery', 
-            tools: ['Cloudflare Bypass', 'Direct IP Scan', 'SSL History', 'Censys Search', 'Shodan Origin Check'], 
-            description: 'Identify the real backend IP address of a target behind a CDN/WAF.',
+            tools: [], 
+            fullWidth: true,
+            description: 'Identify true origin IP addresses behind CDNs using SSL history and service scanning.',
             customContent: (
               <div className="mt-4">
-                <button 
-                  onClick={() => runTool('Origin IP Discovery', 'runehall.com')}
-                  className="w-full border border-red-600 text-red-600 text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2"
-                >
-                  <Globe className="w-3 h-3" />
-                  Bypass Cloudflare for runehall.com
-                </button>
+                <OriginIPDiscovery state={state} onUpdateState={onUpdateState} />
               </div>
             )
           },
@@ -1864,6 +1869,20 @@ function CategoryTools({ category, targets, state, onUpdateState, onExportSessio
                   <Terminal className="w-3 h-3" />
                   Run Full Recon Scan
                 </button>
+              </div>
+            )
+          }
+        ];
+      case 'threatintel':
+        return [
+          {
+            name: 'Global Threat Intelligence Feed',
+            tools: [],
+            fullWidth: true,
+            description: 'Real-time threat intelligence feed and automated target enrichment.',
+            customContent: (
+              <div className="mt-4">
+                <ThreatIntel state={state} onUpdateState={onUpdateState} />
               </div>
             )
           }

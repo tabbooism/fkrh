@@ -98,6 +98,16 @@ export interface Endpoint {
   description: string;
 }
 
+export interface ThreatIntelAlert {
+  id: string;
+  timestamp: string;
+  actor: string;
+  indicator: string;
+  type: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  relatedTargets?: string[];
+}
+
 export interface InvestigationState {
   targets: TargetData;
   intelTargets: IntelTarget[];
@@ -112,6 +122,7 @@ export interface InvestigationState {
   entities: Entity[];
   relationships: Relationship[];
   offensive: OffensiveState;
+  threatIntel: ThreatIntelAlert[];
 }
 
 export type OSINTCategory = 
@@ -127,4 +138,5 @@ export type OSINTCategory =
   | 'monitoring'
   | 'tasks'
   | 'reporting'
-  | 'offensive';
+  | 'offensive'
+  | 'threatintel';

