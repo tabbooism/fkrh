@@ -47,6 +47,7 @@ import { NightFury } from './components/NightFury';
 import { ThreatIntel } from './components/ThreatIntel';
 import { OriginIPDiscovery } from './components/OriginIPDiscovery';
 import { SSHKeyManager } from './components/SSHKeyManager';
+import { SocialMediaSearch } from './components/SocialMediaSearch';
 import GraphVisualization from './components/GraphVisualization';
 import { generateInvestigationReport } from './services/reportService';
 
@@ -79,7 +80,9 @@ const INITIAL_STATE: InvestigationState = {
     isScanning: false,
     results: [],
     logs: []
-  }
+  },
+  threatIntel: [],
+  sshKeys: []
 };
 
 const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; description: string }[] = [
@@ -1399,31 +1402,11 @@ function CategoryTools({ category, targets, state, onUpdateState, onExportSessio
           { name: 'Username Search', tools: ['sherlock', 'maigret', 'whatsmyname.app'] },
           { name: 'Email & Phone', tools: ['holehe', 'ghunt', 'ephorus', 'haveibeenpwned'] },
           {
-            name: 'Social Media Correlation',
-            tools: ['Profile Linker', 'Cross-Platform Search'],
-            description: 'Find associated accounts across different platforms using a username or email.',
-            customContent: (
-              <div className="mt-4 space-y-2">
-                <div className="flex gap-2">
-                  <input 
-                    className="flex-1 bg-transparent border border-ink/20 p-1 text-[10px] outline-none"
-                    placeholder="Username or Email"
-                    id="correlation-target"
-                  />
-                  <button 
-                    onClick={() => {
-                      const targetInput = document.getElementById('correlation-target') as HTMLInputElement;
-                      if (targetInput.value) {
-                        runTool('Social Media Correlation', targetInput.value);
-                      }
-                    }}
-                    className="bg-ink text-bg px-2 py-1 text-[10px] font-bold uppercase"
-                  >
-                    Correlate
-                  </button>
-                </div>
-              </div>
-            )
+            name: 'Platform Discovery & Linkage',
+            tools: ['Profile Linker', 'Cross-Platform Search', 'Bio Correlation'],
+            fullWidth: true,
+            description: 'Find associated accounts across different platforms and analyze link patterns.',
+            customContent: <SocialMediaSearch state={state} onUpdateState={onUpdateState} />
           },
           { name: 'Platform Specific', tools: ['Twitter Advanced Search', 'Pushshift (Reddit)', 'Discord ID Resolver', 'TGStat (Telegram)'] },
           { name: 'Image & Video', tools: ['Google Lens', 'Yandex Reverse Search', 'Exiftool'] },

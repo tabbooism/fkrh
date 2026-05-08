@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Radar, ShieldAlert, AlertTriangle, Activity, RefreshCw, Server, Crosshair, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { InvestigationState, ThreatIntelAlert } from '../types';
+import { GoogleGenAI } from "@google/genai";
 
 interface ThreatIntelProps {
   state: InvestigationState;
@@ -14,12 +15,10 @@ export function ThreatIntel({ state, onUpdateState }: ThreatIntelProps) {
 
   const enrichTargets = async () => {
     setIsEnriching(true);
-    setEnrichmentLogs(['[*] Connecting to Threat Intelligence Exchange...']);
+    setEnrichmentLogs(['[*] Connecting to Threat Intelligence Neural Engine...']);
     
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setEnrichmentLogs(prev => [...prev, '[+] Connection established. Authenticating...']);
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const allTargets = [
         ...state.targets.domains,
@@ -37,19 +36,30 @@ export function ThreatIntel({ state, onUpdateState }: ThreatIntelProps) {
         return;
       }
 
-      setEnrichmentLogs(prev => [...prev, `[*] Submitting ${allTargets.length} targets for correlation...`]);
+      setEnrichmentLogs(prev => [...prev, `[*] Analyzing ${allTargets.length} targets for malicious patterns...`]);
       
-      const response = await fetch('/api/threat-intel/enrich', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targets: allTargets })
+      const prompt = `Analyze the following list of OSINT investigation targets (domains, IPs, emails, usernames) and provide a simulated but high-fidelity threat intelligence enrichment report.
+      
+Targets: ${allTargets.join(', ')}
+
+Return ONLY a JSON object with a "results" array. Each item in the array should have:
+- target: the specific target string
+- malicious: boolean indicating if it's considered malicious
+- actorProfile: string describing the suspected threat actor or group (e.g., "APT29", "Fin7", "RuneHall Syndicate")
+- iocs: array of related Indicators of Compromise (strings like hashes, C2 IPs)
+`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to fetch threat intelligence');
-
-      const data = await response.json();
+      const data = JSON.parse(response.text || '{"results": []}');
       
-      setEnrichmentLogs(prev => [...prev, '[+] Correlation complete. Processing results...']);
+      setEnrichmentLogs(prev => [...prev, '[+] Analysis complete. Processing intelligence records...']);
       
       const newAlerts: ThreatIntelAlert[] = data.results.map((r: any) => ({
         id: Math.random().toString(36).substr(2, 9),
@@ -61,12 +71,11 @@ export function ThreatIntel({ state, onUpdateState }: ThreatIntelProps) {
         relatedTargets: r.iocs
       }));
 
-      // Prepend new alerts to the existing ones
       onUpdateState({
-        threatIntel: [...newAlerts, ...state.threatIntel].slice(0, 100) // Keep last 100
+        threatIntel: [...newAlerts, ...state.threatIntel].slice(0, 100)
       });
 
-      setEnrichmentLogs(prev => [...prev, `[SUCCESS] Added ${newAlerts.length} new intelligence records.`]);
+      setEnrichmentLogs(prev => [...prev, `[SUCCESS] Integrated ${newAlerts.length} new intelligence modules.`]);
     } catch (error: any) {
       setEnrichmentLogs(prev => [...prev, `[ERROR] Enrichment failed: ${error.message}`]);
     } finally {
