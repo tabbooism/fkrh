@@ -54,7 +54,7 @@ import { generateInvestigationReport } from './services/reportService';
 const INITIAL_STATE: InvestigationState = {
   targets: {
     domains: [],
-    usernames: [],
+    usernames: ['testuser123'],
     emails: [],
     names: [],
     phones: [],
@@ -138,12 +138,26 @@ export default function App() {
 
     socket.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
+        let data = event.data;
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data);
+          } catch {
+            return;
+          }
+        }
+        if (!data || typeof data !== 'object') return;
+
         if (data.type === 'UPDATE_STATE' || data.type === 'SYNC_STATE') {
           isRemoteUpdate.current = true;
           setState(data.payload);
-        } else if (data.type === 'OFFENSIVE_LOG' || data.type === 'OFFENSIVE_RESULT') {
-          // Forward offensive messages to the window for NightFury component to catch
+        } else if (
+          data.type === 'OFFENSIVE_LOG' || 
+          data.type === 'OFFENSIVE_RESULT' ||
+          data.type === 'DISCOVERY_LOG' ||
+          data.type === 'DISCOVERY_RESULT'
+        ) {
+          // Forward real-time operational logs to components
           window.postMessage(data, '*');
         } else if (data.type === 'THREAT_INTEL_ALERT') {
           setState(prev => ({
@@ -747,6 +761,77 @@ function LiveScanView({ state, onAddIntel }: { state: InvestigationState; onAddI
   );
 }
 
+function validateTargetInput(type: keyof TargetData, rawVal: string): { isValid: boolean; error?: string; sanitized?: string } {
+  const val = rawVal.trim();
+  if (!val) {
+    return { isValid: false, error: 'Input cannot be empty' };
+  }
+
+  switch (type) {
+    case 'domains': {
+      let cleanVal = val.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/;
+      const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+      const localhostRegex = /^localhost(?::\d+)?$/i;
+      
+      if (domainRegex.test(cleanVal) || ipRegex.test(cleanVal) || localhostRegex.test(cleanVal)) {
+        return { isValid: true, sanitized: cleanVal };
+      }
+      return { isValid: false, error: 'Invalid domain or IP format (e.g., example.com or 192.168.1.1)' };
+    }
+
+    case 'emails': {
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (emailRegex.test(val)) {
+        return { isValid: true, sanitized: val.toLowerCase() };
+      }
+      return { isValid: false, error: 'Invalid email address format (e.g., user@domain.com)' };
+    }
+
+    case 'usernames': {
+      const usernameRegex = /^[a-zA-Z0-9_.-]{2,64}$/;
+      if (usernameRegex.test(val)) {
+        return { isValid: true, sanitized: val };
+      }
+      return { isValid: false, error: 'Username must be 2-64 characters (alphanumeric, _, ., -)' };
+    }
+
+    case 'phones': {
+      const phoneRegex = /^\+?[0-9\s()\-]{7,25}$/;
+      const digitsOnly = val.replace(/\D/g, '');
+      if (phoneRegex.test(val) && digitsOnly.length >= 7 && digitsOnly.length <= 15) {
+        return { isValid: true, sanitized: val };
+      }
+      return { isValid: false, error: 'Invalid phone format (7-15 digits, e.g. +1234567890)' };
+    }
+
+    case 'names': {
+      if (val.length >= 2 && val.length <= 100 && /^[a-zA-Z0-9\s'._-]+$/.test(val)) {
+        return { isValid: true, sanitized: val };
+      }
+      return { isValid: false, error: 'Name must be 2-100 characters long' };
+    }
+
+    case 'crypto': {
+      const btcRegex = /^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-z0-9]{39,59})$/i;
+      const ethRegex = /^0x[a-fA-F0-9]{40}$/;
+      const generalCryptoRegex = /^[a-zA-Z0-9]{26,100}$/;
+      if (btcRegex.test(val) || ethRegex.test(val) || generalCryptoRegex.test(val)) {
+        return { isValid: true, sanitized: val };
+      }
+      return { isValid: false, error: 'Invalid crypto address format (e.g., 0x... or 1.../bc1...)' };
+    }
+
+    case 'other':
+    default: {
+      if (val.length >= 1 && val.length <= 200) {
+        return { isValid: true, sanitized: val };
+      }
+      return { isValid: false, error: 'Value must be between 1 and 200 characters' };
+    }
+  }
+}
+
 function TargetInput({ label, type, values, onAdd, onRemove }: { 
   label: string; 
   type: keyof TargetData; 
@@ -755,9 +840,23 @@ function TargetInput({ label, type, values, onAdd, onRemove }: {
   onRemove: (type: keyof TargetData, idx: number) => void;
 }) {
   const [input, setInput] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const handleAdd = () => {
-    onAdd(type, input);
+    const validation = validateTargetInput(type, input);
+    if (!validation.isValid) {
+      setError(validation.error || 'Invalid format');
+      return;
+    }
+
+    const valueToAdd = validation.sanitized || input.trim();
+    if (values.some(v => v.toLowerCase() === valueToAdd.toLowerCase())) {
+      setError('Value already exists in target list');
+      return;
+    }
+
+    setError(null);
+    onAdd(type, valueToAdd);
     setInput('');
   };
 
@@ -766,19 +865,32 @@ function TargetInput({ label, type, values, onAdd, onRemove }: {
       <label className="text-[10px] uppercase font-bold opacity-50 block">{label}</label>
       <div className="flex gap-1">
         <input 
-          className="flex-1 bg-transparent border border-ink/20 p-1.5 text-xs focus:border-ink outline-none font-mono"
+          className={cn(
+            "flex-1 bg-transparent border p-1.5 text-xs focus:border-ink outline-none font-mono transition-colors",
+            error ? "border-red-500 text-red-600 dark:text-red-400" : "border-ink/20"
+          )}
           placeholder={`Add ${label.toLowerCase()}...`}
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={e => {
+            setInput(e.target.value);
+            if (error) setError(null);
+          }}
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
         />
         <button 
           onClick={handleAdd}
           className="bg-ink text-bg p-1.5 hover:bg-ink/90 transition-colors"
+          title={`Add ${label}`}
         >
           <Plus className="w-4 h-4" />
         </button>
       </div>
+      {error && (
+        <div className="text-[9px] font-mono text-red-500 flex items-center gap-1 animate-pulse">
+          <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1">
         {values.map((val, idx) => (
           <div key={idx} className="bg-ink/5 border border-ink/10 px-2 py-1 text-[10px] font-mono flex items-center gap-2 group">
@@ -1629,7 +1741,7 @@ function CategoryTools({ category, targets, state, onUpdateState, onExportSessio
                 <div className="bg-white border border-ink p-6 shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] flex flex-col justify-between">
                   <div>
                     <h4 className="text-lg font-bold uppercase italic mb-2">Comprehensive PDF Report</h4>
-                    <p className="text-[10px] opacity-60 font-mono mb-6">
+                    <div className="text-[10px] opacity-60 font-mono mb-6">
                       Automatically generates a multi-page document containing:
                       <ul className="list-disc list-inside mt-2 space-y-1">
                         <li>Executive Summary & Context</li>
@@ -1638,7 +1750,7 @@ function CategoryTools({ category, targets, state, onUpdateState, onExportSessio
                         <li>Breach History & Data Leaks</li>
                         <li>Task Progress & Assignments</li>
                       </ul>
-                    </p>
+                    </div>
                   </div>
                   <button 
                     onClick={() => generateInvestigationReport(state)}

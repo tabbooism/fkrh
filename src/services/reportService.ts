@@ -1,13 +1,6 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { InvestigationState } from '../types';
-
-// Extend jsPDF with autotable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
-}
 
 export const generateInvestigationReport = (state: InvestigationState) => {
   const doc = new jsPDF();
@@ -77,7 +70,7 @@ export const generateInvestigationReport = (state: InvestigationState) => {
     ['Crypto', state.targets.crypto.join(', ') || 'None'],
   ];
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: y,
     head: [['Category', 'Values']],
     body: targetRows,
@@ -96,7 +89,7 @@ export const generateInvestigationReport = (state: InvestigationState) => {
 
     const intelRows = state.intelTargets.map(t => [t.username, t.status, t.source, t.timestamp]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Username', 'Status', 'Source', 'Timestamp']],
       body: intelRows,
@@ -122,7 +115,7 @@ export const generateInvestigationReport = (state: InvestigationState) => {
 
     const breachRows = state.breachHistory.map(b => [b.target, b.source, b.details.join(', '), b.timestamp]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Target', 'Source', 'Details', 'Timestamp']],
       body: breachRows,
@@ -148,7 +141,7 @@ export const generateInvestigationReport = (state: InvestigationState) => {
 
     const taskRows = state.tasks.map(t => [t.title, t.status, t.priority, `${t.progress}%`, t.assignee]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Task', 'Status', 'Priority', 'Progress', 'Assignee']],
       body: taskRows,

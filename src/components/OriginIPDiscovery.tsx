@@ -25,7 +25,16 @@ export function OriginIPDiscovery({ state, onUpdateState }: OriginIPDiscoveryPro
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
-        const data = JSON.parse(event.data);
+        let data = event.data;
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data);
+          } catch {
+            return;
+          }
+        }
+        if (!data || typeof data !== 'object') return;
+
         if (data.type === 'DISCOVERY_LOG') {
           setLogs(prev => [...prev, data.payload]);
         } else if (data.type === 'DISCOVERY_RESULT') {
@@ -33,7 +42,7 @@ export function OriginIPDiscovery({ state, onUpdateState }: OriginIPDiscoveryPro
           setIsScanning(false);
         }
       } catch (e) {
-        console.error('Failed to parse WS message', e);
+        // Silently ignore unrelated window events
       }
     };
 

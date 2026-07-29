@@ -40,7 +40,16 @@ export const NightFury: React.FC<NightFuryProps> = ({ state, onUpdateState }) =>
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
-        const data = JSON.parse(event.data);
+        let data = event.data;
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data);
+          } catch {
+            return;
+          }
+        }
+        if (!data || typeof data !== 'object') return;
+
         if (data.type === 'OFFENSIVE_LOG') {
           setLogs(prev => [...prev, data.payload]);
         } else if (data.type === 'OFFENSIVE_RESULT') {
@@ -51,15 +60,11 @@ export const NightFury: React.FC<NightFuryProps> = ({ state, onUpdateState }) =>
           });
         }
       } catch (e) {
-        console.error('Failed to parse WS message', e);
+        // Silently ignore unrelated window events
       }
     };
 
     window.addEventListener('message', handleMessage);
-    // Note: In a real app, you'd use the actual WebSocket instance. 
-    // Here we assume App.tsx broadcasts these events to the window or handles them.
-    // For this implementation, I'll add a listener in App.tsx that forwards WS messages to the state.
-    
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
