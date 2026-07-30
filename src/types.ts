@@ -136,6 +136,8 @@ export interface InvestigationState {
 }
 
 export type OSINTCategory = 
+  | 'tunnel'
+  | 'liverecon'
   | 'infrastructure' 
   | 'social' 
   | 'darkweb' 

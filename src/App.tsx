@@ -29,7 +29,8 @@ import {
   ListTodo,
   Sun,
   Moon,
-  Radar
+  Radar,
+  Radio
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useEffect } from 'react';
@@ -48,13 +49,15 @@ import { ThreatIntel } from './components/ThreatIntel';
 import { OriginIPDiscovery } from './components/OriginIPDiscovery';
 import { SSHKeyManager } from './components/SSHKeyManager';
 import { SocialMediaSearch } from './components/SocialMediaSearch';
+import { TunnelOpsManager } from './components/TunnelOpsManager';
+import { LiveReconOps } from './components/LiveReconOps';
 import GraphVisualization from './components/GraphVisualization';
 import { generateInvestigationReport } from './services/reportService';
 
 const INITIAL_STATE: InvestigationState = {
   targets: {
     domains: [],
-    usernames: ['testuser123'],
+    usernames: [],
     emails: [],
     names: [],
     phones: [],
@@ -86,6 +89,8 @@ const INITIAL_STATE: InvestigationState = {
 };
 
 const CATEGORIES: { id: OSINTCategory; label: string; icon: React.ReactNode; description: string }[] = [
+  { id: 'tunnel', label: 'Tunnel & Ops', icon: <Radio className="w-4 h-4 text-red-500" />, description: 'Cloudflare Tunnel, local deployment & agency connection proxy' },
+  { id: 'liverecon', label: 'Live Recon', icon: <Terminal className="w-4 h-4 text-red-500" />, description: 'Direct live DNS resolver & HTTP security headers probe' },
   { id: 'infrastructure', label: 'Infrastructure', icon: <Globe className="w-4 h-4" />, description: 'DNS, WHOIS, Reverse IP, Hosting' },
   { id: 'social', label: 'Social Media', icon: <Users className="w-4 h-4" />, description: 'Username search, Account correlation' },
   { id: 'runehall', label: 'RuneHall Intel', icon: <Search className="w-4 h-4" />, description: 'Affiliate codes, User ID mappings, Site endpoints' },
@@ -1109,6 +1114,34 @@ function CategoryTools({ category, targets, state, onUpdateState, onExportSessio
 
   const tools = useMemo(() => {
     switch (category) {
+      case 'tunnel':
+        return [
+          {
+            name: 'Cloudflare Tunnel & Local Ops Manager',
+            tools: [],
+            fullWidth: true,
+            description: 'Monitor ingress tunnel state, local port 3000 listener, and generate deployment commands.',
+            customContent: (
+              <div className="mt-4">
+                <TunnelOpsManager />
+              </div>
+            )
+          }
+        ];
+      case 'liverecon':
+        return [
+          {
+            name: 'Live Recon Engine',
+            tools: [],
+            fullWidth: true,
+            description: 'Perform real-time DNS resolution and HTTP security header analysis on targets.',
+            customContent: (
+              <div className="mt-4">
+                <LiveReconOps state={state} onUpdateState={onUpdateState} />
+              </div>
+            )
+          }
+        ];
       case 'monitoring':
         return [
           { 

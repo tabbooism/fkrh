@@ -6,6 +6,7 @@ import { createServer } from "http";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import crypto from "crypto";
+import dns from "dns";
 
 async function startServer() {
   const app = express();
@@ -327,6 +328,93 @@ async function startServer() {
   // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Cloudflare Tunnel & Deployment Info
+  app.get("/api/tunnel/info", (req, res) => {
+    const isCloudflare = !!(req.headers['cf-ray'] || req.headers['cf-connecting-ip']);
+    res.json({
+      timestamp: new Date().toISOString(),
+      isCloudflareTunnel: isCloudflare,
+      cfRay: req.headers['cf-ray'] || null,
+      cfCountry: req.headers['cf-ipcountry'] || null,
+      clientIp: req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+      protocol: req.headers['x-forwarded-proto'] || req.protocol,
+      host: req.headers.host || `localhost:${PORT}`,
+      localPort: PORT,
+      tunnelCommand: `cloudflared tunnel --url http://localhost:${PORT}`,
+      dockerCommand: `docker run -d -p ${PORT}:${PORT} --name rune-osint-ops rune-osint:latest`
+    });
+  });
+
+  // Real DNS Inspection endpoint
+  app.post("/api/ops/dns-lookup", async (req, res) => {
+    const { domain } = req.body;
+    if (!domain) return res.status(400).json({ error: "Domain is required" });
+
+    const cleanDomain = domain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+    const dnsPromises = dns.promises;
+
+    try {
+      const [a, mx, txt, ns] = await Promise.allSettled([
+        dnsPromises.resolve4(cleanDomain),
+        dnsPromises.resolveMx(cleanDomain),
+        dnsPromises.resolveTxt(cleanDomain),
+        dnsPromises.resolveNs(cleanDomain)
+      ]);
+
+      res.json({
+        domain: cleanDomain,
+        records: {
+          A: a.status === 'fulfilled' ? a.value : [],
+          MX: mx.status === 'fulfilled' ? mx.value : [],
+          TXT: txt.status === 'fulfilled' ? txt.value.flat() : [],
+          NS: ns.status === 'fulfilled' ? ns.value : []
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "DNS lookup failed" });
+    }
+  });
+
+  // Real HTTP Headers & Recon endpoint
+  app.post("/api/ops/headers", async (req, res) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: "URL is required" });
+
+    let targetUrl = url;
+    if (!/^https?:\/\//i.test(targetUrl)) {
+      targetUrl = `https://${targetUrl}`;
+    }
+
+    try {
+      const resp = await axios.get(targetUrl, { 
+        timeout: 8000, 
+        validateStatus: () => true,
+        headers: { 'User-Agent': 'RuneOSINT-AgencyOps/4.0' }
+      });
+
+      const secHeaders = {
+        hsts: resp.headers['strict-transport-security'] || 'Missing',
+        csp: resp.headers['content-security-policy'] || 'Missing',
+        xframe: resp.headers['x-frame-options'] || 'Missing',
+        xcontent: resp.headers['x-content-type-options'] || 'Missing',
+        server: resp.headers['server'] || 'Protected / Hidden',
+        contentType: resp.headers['content-type'] || 'Unknown'
+      };
+
+      res.json({
+        url: targetUrl,
+        statusCode: resp.status,
+        statusText: resp.statusText,
+        securityHeaders: secHeaders,
+        rawHeaders: resp.headers,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "HTTP inspection failed" });
+    }
   });
 
   app.post("/api/origin-discovery", async (req, res) => {
