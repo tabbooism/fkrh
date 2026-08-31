@@ -1,5 +1,11 @@
 {
-  "name": "OSINT Investigator",
-  "description": "A comprehensive framework for advanced open-source intelligence investigations, featuring infrastructure mapping, social media correlation, and AI-assisted analysis.",
-  "requestFramePermissions": []
+  "name": "FKRH Control Desk",
+  "description": "Server-backed defensive operations workspace for authorized control checks, public vulnerability intelligence, evidence tracking, and reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "Server-backed operation and task records",
+    "CISA Known Exploited Vulnerabilities feed refresh",
+    "Authorization-gated public DNS and HTTP security-header checks",
+    "Markdown reporting"
+  ]
 }

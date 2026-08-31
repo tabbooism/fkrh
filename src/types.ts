@@ -1,154 +1,92 @@
-export interface TargetData {
-  domains: string[];
-  usernames: string[];
-  emails: string[];
-  names: string[];
-  phones: string[];
-  crypto: string[];
-  other: string[];
-}
+export type OperationPhase =
+  | "Scoping"
+  | "Validation"
+  | "Detection"
+  | "Remediation"
+  | "Reporting";
 
-export interface IntelTarget {
-  id: string;
-  username: string;
-  status: 'UNINVESTIGATED' | 'REPORT READY' | 'DEEP DIVE';
-  source: string;
-  timestamp: string;
-  eventId?: string;
-}
+export type OperationStatus = "Planning" | "Active" | "Paused" | "Complete";
+export type RiskLevel = "Low" | "Moderate" | "High";
+export type TaskPhase = "To Do" | "In Progress" | "Blocked" | "Completed";
+export type Priority = "Low" | "Moderate" | "High";
 
-export interface AffiliateCode {
-  code: string;
-  url: string;
-}
-
-export interface UserProfile {
-  id: string;
-  encoded: string;
-  decoded: string;
-}
-
-export interface ContextualInfo {
-  industry: string;
-  relationships: string;
-}
-
-export interface FinancialRecord {
+export interface Operation {
   id: string;
   name: string;
-  amount: string;
-  timestamp?: string;
-}
-
-export interface Entity {
-  id: string;
-  label: string;
-  type: 'domain' | 'user' | 'ip' | 'email' | 'phone' | 'crypto' | 'other';
-  data?: any;
-}
-
-export interface Relationship {
-  id: string;
-  source: string;
-  target: string;
-  type: string;
-  strength: number;
-}
-
-export interface BreachResult {
-  target: string;
-  source: string;
-  found: boolean;
-  details: string[];
-  timestamp: string;
+  sector: string;
+  phase: OperationPhase;
+  status: OperationStatus;
+  started: string;
+  lead: string;
+  risk: RiskLevel;
+  scope: string;
+  objective: string;
+  rulesOfEngagement: string;
+  timeline: string[];
+  updatedAt: string;
 }
 
 export interface Task {
   id: string;
   title: string;
-  description: string;
-  assignee: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  priority: 'low' | 'medium' | 'high';
-  dependencies: string[];
-  progress: number;
+  phase: TaskPhase;
+  owner: string;
+  priority: Priority;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface ExploitResult {
+export interface IntelItem {
   id: string;
-  url: string;
-  vector: string;
-  payload: string;
-  success: boolean;
-  evidence: string;
-  timestamp: string;
-}
-
-export interface OffensiveState {
-  targetUrl: string;
-  isScanning: boolean;
-  results: ExploitResult[];
-  logs: string[];
-}
-
-export interface Endpoint {
-  path: string;
+  dateAdded: string;
+  vendor: string;
+  product: string;
+  vulnerabilityName: string;
   description: string;
+  knownRansomwareUse: boolean;
+  requiredAction: string;
+  dueDate: string;
+  sourceUrl: string;
 }
 
-export interface ThreatIntelAlert {
-  id: string;
+export interface Metrics {
+  activeOperations: number;
+  totalOperations: number;
+  openTasks: number;
+  blockedTasks: number;
+  completedTasks: number;
+  intelligenceItems: number;
+  lastIntelRefresh: string | null;
+}
+
+export interface DnsLookupResult {
+  domain: string;
+  records: {
+    A: string[];
+    MX: Array<{ exchange: string; priority: number }>;
+    TXT: string[];
+    NS: string[];
+  };
   timestamp: string;
-  actor: string;
-  indicator: string;
-  type: string;
-  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-  relatedTargets?: string[];
 }
 
-export interface SSHKey {
+export interface HeaderAuditResult {
+  url: string;
+  statusCode: number;
+  statusText: string;
+  securityHeaders: Record<string, string>;
+  timestamp: string;
+}
+
+export interface ValidationTemplate {
   id: string;
   name: string;
-  publicKey: string;
-  privateKey: string;
-  associatedTargets: string[];
-  createdAt: string;
+  objective: string;
+  evidence: string[];
+  stopCriteria: string[];
 }
 
-export interface InvestigationState {
-  targets: TargetData;
-  intelTargets: IntelTarget[];
-  affiliates: AffiliateCode[];
-  profiles: UserProfile[];
-  endpoints: Endpoint[];
-  financialRecords: FinancialRecord[];
-  breachHistory: BreachResult[];
-  context: ContextualInfo;
-  notes: string;
+export interface DashboardState {
+  operations: Operation[];
   tasks: Task[];
-  entities: Entity[];
-  relationships: Relationship[];
-  offensive: OffensiveState;
-  threatIntel: ThreatIntelAlert[];
-  sshKeys: SSHKey[];
 }
-
-export type OSINTCategory = 
-  | 'tunnel'
-  | 'liverecon'
-  | 'infrastructure' 
-  | 'social' 
-  | 'darkweb' 
-  | 'financial' 
-  | 'graph' 
-  | 'geospatial' 
-  | 'archival' 
-  | 'ai'
-  | 'runehall'
-  | 'monitoring'
-  | 'tasks'
-  | 'reporting'
-  | 'offensive'
-  | 'threatintel';
